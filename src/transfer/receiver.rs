@@ -75,6 +75,7 @@ impl TransferReceiver {
         mut recv: RecvStream,
         mut send: SendStream,
     ) -> Result<()> {
+        // Receiver expects the caller to have already read the type byte (0x02).
         // ── Read metadata length ──
         let mut len_buf = [0u8; 4];
         recv.read_exact(&mut len_buf)
@@ -199,6 +200,12 @@ impl TransferReceiver {
         self.active_receptions.insert(plan.file_id.clone(), state);
 
         Ok(())
+    }
+
+    pub fn get_reception(&self, file_id: &str) -> Option<Arc<ReceptionState>> {
+        self.active_receptions
+            .get(file_id)
+            .map(|r| r.value().clone())
     }
 
     /// Reassemble a completed file from its chunks.

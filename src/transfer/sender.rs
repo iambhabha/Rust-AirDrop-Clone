@@ -171,6 +171,7 @@ impl TransferSender {
 
         let file_meta_json = serde_json::to_vec(&plan).context("Failed to serialize file plan")?;
         let meta_len = (file_meta_json.len() as u32).to_be_bytes();
+        meta_send.write_all(&[0x01]).await?; // Type 1: FileMetaData
         meta_send.write_all(&meta_len).await?;
         meta_send.write_all(&file_meta_json).await?;
         meta_send.finish()?;
@@ -334,10 +335,11 @@ async fn send_chunk(
     meta.checksum = checksum;
 
     // ── Send metadata header ──
-    // Format: [4 bytes meta_len][meta_json][1 byte compressed_flag][chunk_data]
+    // Format: [1 byte type][4 bytes meta_len][meta_json][1 byte compressed_flag][chunk_data]
     let meta_json = serde_json::to_vec(&meta)?;
     let meta_len = (meta_json.len() as u32).to_be_bytes();
 
+    send.write_all(&[0x02]).await?; // Type 2: Chunk Data
     send.write_all(&meta_len).await?;
     send.write_all(&meta_json).await?;
 

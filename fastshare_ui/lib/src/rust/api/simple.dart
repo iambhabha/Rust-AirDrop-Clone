@@ -6,12 +6,22 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `RUNTIME`, `ServerHandle`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `initialize`
-
-String greet({required String name}) =>
-    RustLib.instance.api.crateApiSimpleGreet(name: name);
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `GLOBAL_APP_STATE`, `GLOBAL_SERVER`, `RUNTIME`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `deref`, `deref`, `initialize`, `initialize`, `initialize`
 
 /// Start the background FastShare server and return some details
 Future<String> startFastshare() =>
     RustLib.instance.api.crateApiSimpleStartFastshare();
+
+/// Send a file to a target IP
+Future<String> sendFileToIp({
+  required String filePath,
+  required String targetIp,
+}) => RustLib.instance.api.crateApiSimpleSendFileToIp(
+  filePath: filePath,
+  targetIp: targetIp,
+);
+
+/// Get a list of discovered nearby devices in JSON format
+Future<String> getNearbyDevices() =>
+    RustLib.instance.api.crateApiSimpleGetNearbyDevices();

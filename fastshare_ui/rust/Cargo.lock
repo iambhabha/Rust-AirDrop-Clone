@@ -4380,6 +4380,7 @@ dependencies = [
  "fastshare",
  "flutter_rust_bridge",
  "lazy_static",
+ "serde_json",
  "tokio",
 ]
 

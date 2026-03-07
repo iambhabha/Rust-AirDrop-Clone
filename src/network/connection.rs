@@ -219,16 +219,67 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
     );
 
     // ── Accept Transfer Streams ──
-    // Each subsequent bidirectional stream carries a file chunk
+    // Each subsequent bidirectional stream carries a file chunk or file plan
     let receiver = TransferReceiver::new(state.chunk_storage.clone());
 
     loop {
         match connection.accept_bi().await {
-            Ok((send_stream, recv_stream)) => {
+            Ok((send_stream, mut recv_stream)) => {
                 let receiver = receiver.clone();
+                let app_state = state.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = receiver.handle_chunk_stream(recv_stream, send_stream).await {
-                        warn!("Chunk stream error: {}", e);
+                    let mut type_buf = [0u8; 1];
+                    if let Err(e) = recv_stream.read_exact(&mut type_buf).await {
+                        warn!("Failed to read stream type: {}", e);
+                        return;
+                    }
+
+                    if type_buf[0] == 0x01 {
+                        // File Plan
+                        let mut len_buf = [0u8; 4];
+                        if recv_stream.read_exact(&mut len_buf).await.is_err() {
+                            return;
+                        }
+                        let len = u32::from_be_bytes(len_buf) as usize;
+                        let mut json_buf = vec![0u8; len];
+                        if recv_stream.read_exact(&mut json_buf).await.is_err() {
+                            return;
+                        }
+                        let plan: crate::transfer::chunker::FileChunkPlan =
+                            serde_json::from_slice(&json_buf).unwrap();
+
+                        if let Err(e) = receiver.handle_file_plan(plan.clone()).await {
+                            error!("Failed to handle file plan: {}", e);
+                            return;
+                        }
+
+                        let file_id = plan.file_id.clone();
+                        let file_name = plan.file_name.clone();
+                        let rx = receiver.clone();
+                        let app_state_inner = app_state.clone();
+
+                        tokio::spawn(async move {
+                            if let Some(rx_state) = rx.get_reception(&file_id) {
+                                rx_state.completion_notify.notified().await;
+                                let out_dir =
+                                    std::path::PathBuf::from(&app_state_inner.download_path);
+                                std::fs::create_dir_all(&out_dir).unwrap_or(());
+                                let out_path = out_dir.join(&file_name);
+                                if let Err(e) = rx.reassemble_file(&file_id, &out_path).await {
+                                    error!("Reassembly failed for {}: {}", file_id, e);
+                                } else {
+                                    info!("File saved to {}", out_path.display());
+                                }
+                            }
+                        });
+                    } else if type_buf[0] == 0x02 {
+                        // Chunk Data
+                        if let Err(e) = receiver.handle_chunk_stream(recv_stream, send_stream).await
+                        {
+                            warn!("Chunk stream error: {}", e);
+                        }
+                    } else {
+                        warn!("Unknown stream type: {}", type_buf[0]);
                     }
                 });
             }

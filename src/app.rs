@@ -34,13 +34,15 @@ pub struct AppState {
     pub peer_manager: Arc<PeerManager>,
     /// Chunk storage for temporary chunk persistence
     pub chunk_storage: Arc<ChunkStorage>,
+    /// Download path for received files
+    pub download_path: String,
 }
 
 /// Top-level application that ties all subsystems together.
 pub struct App {
-    state: Arc<AppState>,
-    quic_server: QuicServer,
-    discovery: DiscoveryService,
+    pub state: Arc<AppState>,
+    pub quic_server: QuicServer,
+    pub discovery: DiscoveryService,
     /// Shutdown signal broadcaster
     shutdown_tx: broadcast::Sender<()>,
 }
@@ -55,7 +57,7 @@ impl App {
     /// 4. The network performance monitor
     /// 5. The distributed peer manager
     /// 6. Chunk storage for temporary file chunks
-    pub async fn new() -> Result<Self> {
+    pub async fn new(download_path: String, temp_path: String) -> Result<Self> {
         let device_id = Uuid::new_v4().to_string();
         let device_name = hostname::get()
             .map(|h| h.to_string_lossy().to_string())
@@ -78,7 +80,7 @@ impl App {
         let peer_manager = Arc::new(PeerManager::new(device_id.clone()));
 
         // ── Initialize Chunk Storage ──
-        let chunk_storage = Arc::new(ChunkStorage::new()?);
+        let chunk_storage = Arc::new(ChunkStorage::with_path(std::path::PathBuf::from(temp_path)));
 
         let (shutdown_tx, _) = broadcast::channel(1);
 
@@ -90,6 +92,7 @@ impl App {
             network_monitor,
             peer_manager,
             chunk_storage,
+            download_path,
         });
 
         Ok(Self {

@@ -11,6 +11,7 @@ flutter_rust_bridge = "=2.11.1"
 fastshare = { path = "../../" }
 tokio = { version = "1.0", features = ["rt", "rt-multi-thread"] }
 lazy_static = "1.5.0"
+serde_json = "1.0.149"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
