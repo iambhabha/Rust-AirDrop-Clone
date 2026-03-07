@@ -1,0 +1,299 @@
+warning: unused import: `crate::transfer::receiver::TransferReceiver`
+  --> src\app.rs:18:5
+   |
+18 | use crate::transfer::receiver::TransferReceiver;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `crate::transfer::sender::TransferSender`
+  --> src\app.rs:19:5
+   |
+19 | use crate::transfer::sender::TransferSender;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Context`
+  --> src\compression\lz4.rs:17:14
+   |
+17 | use anyhow::{Context, Result};
+   |              ^^^^^^^
+
+warning: unused import: `tokio::sync::mpsc`
+  --> src\distributed\chunk_router.rs:26:5
+   |
+26 | use tokio::sync::mpsc;
+   |     ^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `debug` and `error`
+  --> src\distributed\chunk_router.rs:27:15
+   |
+27 | use tracing::{debug, error, info, warn};
+   |               ^^^^^  ^^^^^
+
+warning: unused import: `crate::transfer::chunker::ChunkMeta`
+  --> src\distributed\chunk_router.rs:31:5
+   |
+31 | use crate::transfer::chunker::ChunkMeta;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+  --> src\distributed\peer_manager.rs:22:5
+   |
+22 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused imports: `Context` and `Result`
+  --> src\distributed\peer_manager.rs:24:14
+   |
+24 | use anyhow::{Context, Result};
+   |              ^^^^^^^  ^^^^^^
+
+warning: unused import: `tokio::sync::RwLock`
+  --> src\distributed\peer_manager.rs:27:5
+   |
+27 | use tokio::sync::RwLock;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused imports: `debug` and `warn`
+  --> src\distributed\peer_manager.rs:28:15
+   |
+28 | use tracing::{debug, info, warn};
+   |               ^^^^^        ^^^^
+
+warning: unused import: `std::sync::Arc`
+ --> src\network\broadcast.rs:8:5
+  |
+8 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused imports: `RecvStream` and `SendStream`
+  --> src\network\connection.rs:19:41
+   |
+19 |     ClientConfig, Connection, Endpoint, RecvStream, SendStream, ServerConfig, TransportConfig,
+   |                                         ^^^^^^^^^^  ^^^^^^^^^^
+
+warning: unused import: `tokio::sync::RwLock`
+  --> src\network\connection.rs:23:5
+   |
+23 | use tokio::sync::RwLock;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Capabilities`
+  --> src\network\connection.rs:27:39
+   |
+27 | use crate::network::handshake::{self, Capabilities};
+   |                                       ^^^^^^^^^^^^
+
+warning: unused import: `std::collections::HashMap`
+  --> src\network\discovery.rs:14:5
+   |
+14 | use std::collections::HashMap;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `tokio::sync::RwLock`
+  --> src\network\discovery.rs:24:5
+   |
+24 | use tokio::sync::RwLock;
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `debug`
+  --> src\optimizer\adaptive_stream_controller.rs:17:15
+   |
+17 | use tracing::{debug, info};
+   |               ^^^^^
+
+warning: unused import: `std::sync::Arc`
+  --> src\optimizer\network_monitor.rs:15:5
+   |
+15 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `info`
+  --> src\optimizer\network_monitor.rs:20:22
+   |
+20 | use tracing::{debug, info};
+   |                      ^^^^
+
+warning: unused import: `std::sync::Arc`
+  --> src\security\auth.rs:15:5
+   |
+15 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+  --> src\security\auth.rs:17:5
+   |
+17 | use anyhow::Result;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused imports: `mpsc` and `oneshot`
+  --> src\security\auth.rs:19:19
+   |
+19 | use tokio::sync::{mpsc, oneshot, RwLock};
+   |                   ^^^^  ^^^^^^^
+
+warning: unused import: `warn`
+  --> src\security\auth.rs:20:21
+   |
+20 | use tracing::{info, warn};
+   |                     ^^^^
+
+warning: unused imports: `Duration` and `Instant`
+ --> src\security\pairing.rs:9:17
+  |
+9 | use std::time::{Duration, Instant};
+  |                 ^^^^^^^^  ^^^^^^^
+
+warning: unused import: `Path`
+  --> src\storage\chunk_storage.rs:20:17
+   |
+20 | use std::path::{Path, PathBuf};
+   |                 ^^^^
+
+warning: unused import: `AsyncReadExt`
+  --> src\storage\chunk_storage.rs:24:17
+   |
+24 | use tokio::io::{AsyncReadExt, AsyncWriteExt};
+   |                 ^^^^^^^^^^^^
+
+warning: unused import: `PathBuf`
+  --> src\transfer\receiver.rs:15:23
+   |
+15 | use std::path::{Path, PathBuf};
+   |                       ^^^^^^^
+
+warning: unused import: `error`
+  --> src\transfer\receiver.rs:24:22
+   |
+24 | use tracing::{debug, error, info, warn};
+   |                      ^^^^^
+
+warning: unused import: `Path`
+  --> src\transfer\resume.rs:16:17
+   |
+16 | use std::path::{Path, PathBuf};
+   |                 ^^^^
+
+warning: unused import: `std::sync::Arc`
+  --> src\transfer\scheduler.rs:14:5
+   |
+14 | use std::sync::Arc;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `anyhow::Result`
+  --> src\transfer\scheduler.rs:16:5
+   |
+16 | use anyhow::Result;
+   |     ^^^^^^^^^^^^^^
+
+warning: unused import: `PathBuf`
+  --> src\transfer\sender.rs:22:23
+   |
+22 | use std::path::{Path, PathBuf};
+   |                       ^^^^^^^
+
+warning: unused import: `mpsc`
+  --> src\transfer\sender.rs:29:19
+   |
+29 | use tokio::sync::{mpsc, Semaphore};
+   |                   ^^^^
+
+warning: unused import: `FileChunkPlan`
+  --> src\transfer\sender.rs:33:43
+   |
+33 | use crate::transfer::chunker::{ChunkMeta, FileChunkPlan, FileChunker, NetworkSpeed};
+   |                                           ^^^^^^^^^^^^^
+
+warning: unused import: `crate::transfer::scheduler::StreamScheduler`
+  --> src\transfer\sender.rs:35:5
+   |
+35 | use crate::transfer::scheduler::StreamScheduler;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `crate::app::App as FastShareApp`
+ --> src\ui\gui.rs:3:5
+  |
+3 | use crate::app::App as FastShareApp;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `std::sync::Arc`
+ --> src\ui\gui.rs:5:5
+  |
+5 | use std::sync::Arc;
+  |     ^^^^^^^^^^^^^^
+
+warning: unused import: `Context`
+  --> src\wifi_direct\hotspot.rs:19:14
+   |
+19 | use anyhow::{Context, Result};
+   |              ^^^^^^^
+
+warning: unused import: `warn`
+  --> src\wifi_direct\hotspot.rs:21:21
+   |
+21 | use tracing::{info, warn};
+   |                     ^^^^
+
+warning: unused import: `warn`
+  --> src\wifi_direct\peer_connection.rs:10:21
+   |
+10 | use tracing::{info, warn};
+   |                     ^^^^
+
+warning: unused variable: `event`
+  --> src\ui\gui.rs:26:41
+   |
+26 |                     onmouseenter: move |event| { /* no-op for now, needs direct css for hover usually */ },
+   |                                         ^^^^^ help: if this is intentional, prefix it with an underscore: `_event`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `password`
+  --> src\wifi_direct\peer_connection.rs:76:49
+   |
+76 |     pub async fn connect(&mut self, ssid: &str, password: &str) -> Result<()> {
+   |                                                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_password`
+
+warning: constant `MDNS_SERVICE_TYPE` is never used
+  --> src\network\discovery.rs:33:7
+   |
+33 | const MDNS_SERVICE_TYPE: &str = "_fastshare._udp.local.";
+   |       ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: constant `PAIRING_CODE_LENGTH` is never used
+  --> src\security\pairing.rs:22:7
+   |
+22 | const PAIRING_CODE_LENGTH: usize = 6;
+   |       ^^^^^^^^^^^^^^^^^^^
+
+warning: `fastshare` (lib) generated 44 warnings (run `cargo fix --lib -p fastshare` to apply 42 suggestions)
+warning: unused import: `fmt`
+ --> src\main.rs:8:26
+  |
+8 | use tracing_subscriber::{fmt, EnvFilter};
+  |                          ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `fastshare::network::connection::QuicServer`
+  --> src\main.rs:10:5
+   |
+10 | use fastshare::network::connection::QuicServer;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `fastshare::network::discovery::DiscoveryService`
+  --> src\main.rs:11:5
+   |
+11 | use fastshare::network::discovery::DiscoveryService;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `fastshare::optimizer::network_monitor::NetworkMonitor`
+  --> src\main.rs:12:5
+   |
+12 | use fastshare::optimizer::network_monitor::NetworkMonitor;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `fastshare` (bin "fastshare") generated 4 warnings (run `cargo fix --bin "fastshare" -p fastshare` to apply 4 suggestions)
+    Finished `dev` profile [optimized + debuginfo] target(s) in 0.29s
