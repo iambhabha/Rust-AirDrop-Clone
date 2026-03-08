@@ -44,7 +44,7 @@ pub struct AppState {
     /// Current incoming transfer to show in UI: (file_id, from_addr, file_name). GUI reads this and responds via pending_decisions.
     /// Current incoming transfer to show in UI: (file_id, from_addr, file_name, total_files, total_size).
     pub pending_incoming_display:
-        Arc<std::sync::Mutex<Option<(String, SocketAddr, String, u32, u64)>>>,
+        Arc<std::sync::Mutex<Option<(String, SocketAddr, String, u32, u64, u64)>>>,
     /// Current outgoing transfer progress for UI (file list, size, progress bar).
     pub transfer_progress: Arc<std::sync::Mutex<Option<crate::transfer::sender::TransferProgress>>>,
     /// Receiver for management of incoming transfers
@@ -246,133 +246,114 @@ const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
 /// Runs a loop that receives send-file requests from the GUI and performs the transfer.
 /// Call this in the same runtime as `App::run` (e.g. spawn it before `app.run().await`).
 pub async fn run_send_loop(
-    mut send_rx: mpsc::Receiver<(PathBuf, SocketAddr)>,
+    mut send_rx: mpsc::Receiver<(Vec<PathBuf>, SocketAddr)>,
     quic_server: QuicServer,
     state: Arc<AppState>,
 ) {
-    let sender = TransferSender::new();
-    while let Some((file_path, peer_addr)) = send_rx.recv().await {
-        if !file_path.exists() {
-            tracing::error!("File not found: {}", file_path.display());
+    info!("🚀 [FastShare] Send loop started");
+    while let Some((file_paths, peer_addr)) = send_rx.recv().await {
+        let sender = TransferSender::new();
+        let total_files = file_paths.len() as u32;
+        if total_files == 0 {
             continue;
+        }
+
+        // Calculate total batch size
+        let mut total_batch_size = 0u64;
+        for path in &file_paths {
+            if let Ok(m) = std::fs::metadata(path) {
+                total_batch_size += m.len();
+            }
         }
 
         if let Ok(mut guard) = state.transfer_progress.lock() {
             *guard = Some(TransferProgress {
-                file_name: format!("Connecting to {}...", peer_addr.ip()),
-                file_id: String::new(),
-                total_bytes: 0,
+                file_name: if total_files > 1 {
+                    format!("Batch of {} files", total_files)
+                } else {
+                    file_paths[0]
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .unwrap_or_else(|| "Unknown".into())
+                },
+                file_id: "batch".into(),
+                total_bytes: total_batch_size, // Legacy support
                 bytes_sent: 0,
                 chunks_sent: 0,
-                total_chunks: 1,
+                total_chunks: 0,
                 current_file_index: 1,
-                total_files: 1,
+                total_files,
+                total_batch_size,
+                batch_bytes_sent: 0,
                 throughput_bps: 0,
                 eta_seconds: 0.0,
                 complete: false,
             });
         }
 
-        let mut last_err = None;
-        for attempt in 1..=CONNECT_RETRIES {
-            let connect_fut = quic_server.connect_and_handshake(peer_addr, state.clone());
-            match tokio::time::timeout(CONNECT_TIMEOUT, connect_fut).await {
-                Ok(Ok(connection)) => {
-                    let state_for_cb = state.clone();
-                    let progress_cb = Some(Box::new(move |p: TransferProgress| {
-                        if let Ok(mut guard) = state_for_cb.transfer_progress.lock() {
-                            *guard = Some(p);
-                        }
-                    })
-                        as Box<dyn Fn(TransferProgress) + Send + Sync>);
+        match quic_server
+            .connect_and_handshake(peer_addr, state.clone())
+            .await
+        {
+            Ok(connection) => {
+                let state_for_cb = state.clone();
+                let shared_cb = Arc::new(move |p: TransferProgress| {
+                    if let Ok(mut guard) = state_for_cb.transfer_progress.lock() {
+                        *guard = Some(p);
+                    }
+                });
+
+                let mut current_idx = 1;
+                let mut batch_bytes_already_sent = 0u64;
+                for file_path in file_paths {
+                    let cb_clone = shared_cb.clone();
+                    let progress_cb = Some(Box::new(move |p| cb_clone(p))
+                        as Box<dyn Fn(TransferProgress) + Send + Sync + 'static>);
+
+                    let file_size = std::fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
+
                     if let Err(e) = sender
                         .send_file(
                             &connection,
                             &file_path,
                             NetworkSpeed::Normal,
-                            1,
-                            1,
-                            None,
+                            total_files,
+                            current_idx,
+                            total_batch_size,
+                            batch_bytes_already_sent,
+                            None, // resume_state
                             progress_cb,
                         )
                         .await
                     {
                         tracing::error!("Send file failed: {}", e);
-                        let mut history = state.transfer_history.lock().unwrap();
-                        history.push(TransferHistoryItem {
-                            file_name: file_path.to_string_lossy().to_string(),
-                            size: 0,
-                            status: format!("Failed: {}", e),
-                            timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-                            is_incoming: false,
-                            saved_path: Some(file_path.to_string_lossy().to_string()),
-                            total_files: 1,
-                        });
-                        App::save_history(&state);
                     } else {
-                        info!("✅ File sent successfully: {}", file_path.display());
+                        // Add to history
                         let mut history = state.transfer_history.lock().unwrap();
                         history.push(TransferHistoryItem {
                             file_name: file_path.to_string_lossy().to_string(),
-                            size: 0,
+                            size: file_size,
                             status: "Success".into(),
                             timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                             is_incoming: false,
                             saved_path: Some(file_path.to_string_lossy().to_string()),
-                            total_files: 1, // run_send_loop handles one file at a time from the channel
+                            total_files,
                         });
+                        drop(history);
                         App::save_history(&state);
+                        batch_bytes_already_sent += file_size;
                     }
-                    if let Ok(mut guard) = state.transfer_progress.lock() {
-                        *guard = None;
-                    }
-                    last_err = None;
-                    break;
+                    current_idx += 1;
                 }
-                Ok(Err(e)) => {
-                    last_err = Some(e);
-                    if attempt < CONNECT_RETRIES {
-                        tracing::warn!(
-                            "Connect to {} failed (attempt {}/{}), retrying in {:?}...",
-                            peer_addr,
-                            attempt,
-                            CONNECT_RETRIES,
-                            CONNECT_RETRY_DELAY
-                        );
-                        tokio::time::sleep(CONNECT_RETRY_DELAY).await;
-                    }
-                }
-                Err(_) => {
-                    last_err = Some(anyhow::anyhow!(
-                        "Connection timeout after {:?}",
-                        CONNECT_TIMEOUT
-                    ));
-                    if attempt < CONNECT_RETRIES {
-                        tracing::warn!(
-                            "Connect to {} timed out (attempt {}/{}), retrying...",
-                            peer_addr,
-                            attempt,
-                            CONNECT_RETRIES
-                        );
-                        tokio::time::sleep(CONNECT_RETRY_DELAY).await;
-                    }
+                if let Ok(mut guard) = state.transfer_progress.lock() {
+                    *guard = None;
                 }
             }
-        }
-        if let Some(e) = last_err {
-            tracing::error!(
-                "Connect to {} failed after {} attempts: {}",
-                peer_addr,
-                CONNECT_RETRIES,
-                e
-            );
-            crate::ui::gui_bridge::set_backend_status(format!(
-                "Failed to connect to {}: {}",
-                peer_addr.ip(),
-                e
-            ));
-            if let Ok(mut guard) = state.transfer_progress.lock() {
-                *guard = None;
+            Err(e) => {
+                tracing::error!("Connect failed: {}", e);
+                if let Ok(mut guard) = state.transfer_progress.lock() {
+                    *guard = None;
+                }
             }
         }
     }

@@ -12,6 +12,7 @@
 //! 4. When all chunks received, reassemble into final file
 //! 5. Verify final file hash
 
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -36,8 +37,12 @@ pub struct ReceptionState {
     pub plan: FileChunkPlan,
     /// Number of chunks received so far
     pub chunks_received: AtomicU64,
+    /// Address of the sender
+    pub from_addr: SocketAddr,
     /// Notifier for when all chunks are received
     pub completion_notify: Notify,
+    /// Time when the reception started
+    pub start_time: std::time::Instant,
 }
 
 /// The transfer receiver — handles incoming chunk streams
@@ -189,10 +194,10 @@ impl TransferReceiver {
         Ok(())
     }
 
-    /// Handle a file metadata stream (sent before chunks begin).
+    /// Handle an incoming file chunk plan.
     ///
     /// This initializes the reception state for a new file transfer.
-    pub async fn handle_file_plan(&self, plan: FileChunkPlan) -> Result<()> {
+    pub async fn handle_file_plan(&self, plan: FileChunkPlan, from_addr: SocketAddr) -> Result<()> {
         info!(
             "📥 Incoming file: '{}' ({} bytes, {} chunks)",
             plan.file_name, plan.total_size, plan.total_chunks
@@ -201,7 +206,9 @@ impl TransferReceiver {
         let state = Arc::new(ReceptionState {
             plan: plan.clone(),
             chunks_received: AtomicU64::new(0),
+            from_addr,
             completion_notify: Notify::new(),
+            start_time: std::time::Instant::now(),
         });
 
         // Create chunk storage directory
@@ -210,6 +217,22 @@ impl TransferReceiver {
         self.active_receptions.insert(plan.file_id.clone(), state);
 
         Ok(())
+    }
+
+    /// Cleanup all active receptions from a specific sender.
+    /// Call this when a QUIC connection is closed/timed out.
+    pub fn cleanup_receptions_for(&self, from_addr: SocketAddr) {
+        let to_remove: Vec<String> = self
+            .active_receptions
+            .iter()
+            .filter(|r| r.value().from_addr == from_addr)
+            .map(|r| r.key().clone())
+            .collect();
+
+        for file_id in to_remove {
+            info!("🧹 Cleaning up stuck reception: {}", file_id);
+            self.active_receptions.remove(&file_id);
+        }
     }
 
     pub fn get_reception(&self, file_id: &str) -> Option<Arc<ReceptionState>> {
@@ -224,8 +247,7 @@ impl TransferReceiver {
     /// them to the final output path.
     pub async fn reassemble_file(&self, file_id: &str, output_path: &Path) -> Result<()> {
         let state = self
-            .active_receptions
-            .get(file_id)
+            .get_reception(file_id)
             .context("No active reception for this file")?;
 
         let plan = &state.plan;

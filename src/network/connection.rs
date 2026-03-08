@@ -43,8 +43,8 @@ const INITIAL_WINDOW: u32 = 16 * 1024 * 1024;
 /// Maximum window size in bytes (64 MB).
 const MAX_WINDOW: u32 = 64 * 1024 * 1024;
 
-/// Maximum idle timeout in milliseconds.
-const MAX_IDLE_TIMEOUT_MS: u32 = 30_000;
+/// Maximum idle timeout in milliseconds (2 minutes).
+const MAX_IDLE_TIMEOUT_MS: u32 = 120_000;
 
 /// Keep-alive interval in milliseconds.
 const KEEP_ALIVE_INTERVAL_MS: u64 = 5_000;
@@ -255,7 +255,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                             file_name, file_id, plan.total_chunks
                         );
 
-                        if let Err(e) = receiver.handle_file_plan(plan.clone()).await {
+                        if let Err(e) = receiver.handle_file_plan(plan.clone(), remote).await {
                             error!(
                                 "❌ [FastShare] Failed to handle file plan for {}: {}",
                                 file_name, e
@@ -305,17 +305,6 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                             // We grabbed the write lock and the global slot is free. Show our popup.
                             let (tx, rx) = oneshot::channel();
                             app_state.pending_decisions.insert(file_id.clone(), tx);
-                            let total_batch_size: u64 = plan
-                                .chunks
-                                .iter()
-                                .map(|c| c.size)
-                                .collect::<Vec<_>>()
-                                .iter()
-                                .sum(); // Simple approach: total size of this file.
-                                        // Actually, if it's a batch, we'd need the total size of ALL files.
-                                        // For now, let's use the current file's info as a proxy if we don't have batch-wide metadata.
-                                        // But plan.total_size IS the total size of THIS file.
-
                             if let Ok(mut guard) = app_state.pending_incoming_display.lock() {
                                 *guard = Some((
                                     file_id.clone(),
@@ -323,10 +312,11 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                     file_name.clone(),
                                     plan.total_files,
                                     plan.total_size,
+                                    plan.total_batch_size,
                                 ));
                                 info!(
-                                    "📥 [FastShare] Set pending_incoming_display for {}",
-                                    file_name
+                                    "📥 [FastShare] Set pending_incoming_display for {} (Part of batch of {})",
+                                    file_name, plan.total_files
                                 );
                             }
 
@@ -376,6 +366,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                 saved_path: None,
                                 total_files: plan.total_files,
                             });
+                            drop(history);
                             crate::app::App::save_history(&app_state);
                             return;
                         }
@@ -406,6 +397,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                         saved_path: Some(out_path.to_string_lossy().to_string()),
                                         total_files: plan.total_files,
                                     });
+                                    drop(history);
                                     crate::app::App::save_history(&app_state_inner);
                                 } else {
                                     info!("File saved to {}", out_path.display());
@@ -423,6 +415,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                         saved_path: Some(out_path.to_string_lossy().to_string()),
                                         total_files: plan.total_files,
                                     });
+                                    drop(history);
                                     crate::app::App::save_history(&app_state_inner);
                                 }
                             }
@@ -448,6 +441,9 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
             }
         }
     }
+
+    // Cleanup stuck receptions on disconnect
+    state.transfer_receiver.cleanup_receptions_for(remote);
 
     Ok(())
 }

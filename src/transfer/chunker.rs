@@ -28,17 +28,17 @@ use uuid::Uuid;
 
 // ── Constants ──
 
-/// Default chunk size: 8 MB
-pub const DEFAULT_CHUNK_SIZE: u64 = 8 * 1024 * 1024;
+/// Default chunk size: 1 MB
+pub const DEFAULT_CHUNK_SIZE: u64 = 1 * 1024 * 1024;
 
-/// Fast network chunk size: 16 MB (1-5 Gbps)
-pub const FAST_CHUNK_SIZE: u64 = 16 * 1024 * 1024;
+/// Fast network chunk size: 2 MB (1-5 Gbps)
+pub const FAST_CHUNK_SIZE: u64 = 2 * 1024 * 1024;
 
-/// Ultra-fast network chunk size: 32 MB (>5 Gbps)
-pub const ULTRA_FAST_CHUNK_SIZE: u64 = 32 * 1024 * 1024;
+/// Ultra-fast network chunk size: 4 MB (>5 Gbps)
+pub const ULTRA_FAST_CHUNK_SIZE: u64 = 4 * 1024 * 1024;
 
-/// Slow network chunk size: 4 MB (<100 Mbps)
-pub const SLOW_CHUNK_SIZE: u64 = 4 * 1024 * 1024;
+/// Slow network chunk size: 512 KB (<100 Mbps)
+pub const SLOW_CHUNK_SIZE: u64 = 512 * 1024;
 
 // ── Data Structures ──
 
@@ -86,6 +86,12 @@ pub struct FileChunkPlan {
     pub total_size: u64,
     /// Total number of files in this transfer session
     pub total_files: u32,
+    /// Total size of all files in this batch
+    pub total_batch_size: u64,
+    /// Bytes sent in previous files of this batch
+    pub batch_bytes_already_sent: u64,
+    /// 1-based index of this file in the batch
+    pub current_file_index: u32,
     /// Chunk size used for splitting
     pub chunk_size: u64,
     /// Total number of chunks
@@ -121,7 +127,14 @@ impl FileChunker {
     /// Returns a `FileChunkPlan` with metadata for each chunk.
     /// The actual chunk data is read on-demand during transfer
     /// to avoid loading large files into memory.
-    pub async fn plan_file(&self, path: &Path, total_files: u32) -> Result<FileChunkPlan> {
+    pub async fn plan_file(
+        &self,
+        path: &Path,
+        total_files: u32,
+        current_file_index: u32,
+        total_batch_size: u64,
+        batch_bytes_already_sent: u64,
+    ) -> Result<FileChunkPlan> {
         let metadata = tokio::fs::metadata(path)
             .await
             .context("Failed to read file metadata")?;
@@ -162,9 +175,12 @@ impl FileChunker {
             file_name,
             total_size,
             total_files,
+            total_batch_size,
             chunk_size: self.chunk_size,
             total_chunks,
             chunks,
+            batch_bytes_already_sent,
+            current_file_index,
         })
     }
 

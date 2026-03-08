@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:downloadsfolder/downloadsfolder.dart';
+
 import 'package:fastshare_ui/src/rust/api/simple.dart';
 import 'package:fastshare_ui/src/rust/frb_generated.dart';
 
@@ -177,9 +177,9 @@ class _FastShareHomeState extends State<FastShareHome>
     try {
       String? downloadPath;
       if (Platform.isAndroid) {
-        // Use downloadsfolder package for real Download folder on Android
-        downloadPath = (await getDownloadDirectory()).path;
-        debugPrint("Android Download Path: $downloadPath");
+        // Save directly to the public Downloads folder for user convenience
+        downloadPath = '/storage/emulated/0/Download/FastShare';
+        debugPrint("Android Public Downloads Path: $downloadPath");
       } else {
         final downloadDir =
             await getExternalStorageDirectory() ??
@@ -490,6 +490,7 @@ class _FastShareHomeState extends State<FastShareHome>
         // If we had active transfers and now they are gone
         if (activeIncoming.isNotEmpty && progress.isEmpty) {
           _showSnackBar("Transfer completed!", action: "HISTORY");
+          // On Android we now directly save to public downloads, so no need to copy
         }
         setState(() {
           activeIncoming = progress;
@@ -616,12 +617,16 @@ class _FastShareHomeState extends State<FastShareHome>
         _outgoingProgress = null;
       });
 
-      // Start outgoing progress poll
-      _outgoingProgressTimer?.cancel();
-      _outgoingProgressTimer = Timer.periodic(
-        const Duration(milliseconds: 300),
-        (_) => _updateOutgoingProgress(),
-      );
+      // Use a robust background loop instead of Timer.periodic
+      bool isTransferring = true;
+      Future<void> pollProgress() async {
+        while (isTransferring && mounted) {
+          await _updateOutgoingProgress();
+          await Future.delayed(const Duration(milliseconds: 300));
+        }
+      }
+
+      pollProgress();
 
       // Send the files over QUIC
       final response = await sendFilesToIp(
@@ -629,7 +634,7 @@ class _FastShareHomeState extends State<FastShareHome>
         targetIp: _ipController.text,
       );
 
-      _outgoingProgressTimer?.cancel();
+      isTransferring = false;
 
       setState(() {
         status = response;
@@ -666,6 +671,7 @@ class _FastShareHomeState extends State<FastShareHome>
                   ? Theme.of(navigatorKey.currentContext!).colorScheme.primary
                   : null), // Use primary color for history action, default otherwise
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         margin: const EdgeInsets.all(16),
         action: action == "HISTORY"
@@ -834,12 +840,11 @@ class _FastShareHomeState extends State<FastShareHome>
                             ),
                           ),
                         ),
-                        if (_outgoingProgress != null &&
-                            _outgoingProgress!['throughput_bps'] > 0)
+                        if (_outgoingProgress != null)
                           Padding(
                             padding: const EdgeInsets.only(top: 4.0),
                             child: Text(
-                              'Speed: ${(_outgoingProgress!['throughput_bps'] / (1024 * 1024)).toStringAsFixed(2)} MB/s',
+                              'Speed: ${_formatSize(_outgoingProgress!['throughput_bps'] ?? 0)}/s • ${_formatSize(_outgoingProgress!['bytes_sent'] ?? 0)} / ${_formatSize(_outgoingProgress!['total_bytes'] ?? 0)}',
                               style: const TextStyle(
                                 fontSize: 11,
                                 color: Colors.white54,
@@ -858,6 +863,11 @@ class _FastShareHomeState extends State<FastShareHome>
                   const SizedBox(height: 8),
                   ...activeIncoming.map((p) {
                     final double progressValue = p['progress'] ?? 0.0;
+                    final double batchProgress =
+                        p['batch_progress'] ?? progressValue;
+                    final int currentIdx = p['current_file_index'] ?? 1;
+                    final int totalFiles = p['total_files'] ?? 1;
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12.0),
                       child: _buildCard(
@@ -869,16 +879,32 @@ class _FastShareHomeState extends State<FastShareHome>
                                 const Icon(Icons.download, color: Colors.teal),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Text(
-                                    p['file_name'] ?? 'Unknown',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        totalFiles > 1
+                                            ? 'Incoming ($currentIdx/$totalFiles): ${p['file_name']}'
+                                            : 'Incoming: ${p['file_name']}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        '${p['status'] ?? 'Receiving...'} • ${_formatSize(p['throughput_bps'] ?? 0)}/s • ${_formatSize(p['received_bytes'] ?? 0)} / ${_formatSize(p['total_bytes'] ?? 0)}',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.white70,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 Text(
-                                  '${(progressValue * 100).toStringAsFixed(1)}%',
+                                  '${(progressValue * 100).toStringAsFixed(0)}%',
                                   style: const TextStyle(
                                     color: Colors.teal,
                                     fontWeight: FontWeight.bold,
@@ -886,11 +912,47 @@ class _FastShareHomeState extends State<FastShareHome>
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 12),
+                            // File Progress
                             LinearProgressIndicator(
                               value: progressValue,
                               color: Colors.teal,
+                              backgroundColor: Colors.teal.withOpacity(0.1),
+                              minHeight: 6,
+                              borderRadius: BorderRadius.circular(3),
                             ),
+                            if (totalFiles > 1) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Batch Progress',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.white54,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${(batchProgress * 100).toStringAsFixed(0)}%',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.white54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              LinearProgressIndicator(
+                                value: batchProgress,
+                                color: colorScheme.secondary,
+                                backgroundColor: colorScheme.secondary
+                                    .withOpacity(0.1),
+                                minHeight: 4,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -1429,8 +1491,6 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transfer History'),

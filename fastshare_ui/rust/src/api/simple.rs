@@ -95,7 +95,13 @@ pub fn send_files_to_ip(file_paths: Vec<String>, target_ip: String) -> String {
             }
         });
         let result = RUNTIME.block_on(do_send_files(server, file_paths, target_ip, progress_cb));
-        *GLOBAL_TRANSFER_PROGRESS.lock().unwrap() = None;
+        // Keep 100% visible for a moment
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            if let Ok(mut g) = GLOBAL_TRANSFER_PROGRESS.lock() {
+                *g = None;
+            }
+        });
         result
     } else {
         "Please Start Rust Engine first!".into()
@@ -139,10 +145,23 @@ async fn do_send_files(
     let sender = TransferSender::new();
     let mut success_count = 0;
     let total = file_paths.len() as u32;
+
+    // Calculate total batch size
+    let mut total_batch_size = 0u64;
+    for path in &file_paths {
+        if let Ok(m) = std::fs::metadata(path) {
+            total_batch_size += m.len();
+        }
+    }
+
+    let mut batch_bytes_already_sent = 0u64;
     for (idx, path) in file_paths.iter().enumerate() {
         let cb = progress_cb.clone();
         let progress_cb_opt = Some(Box::new(move |p: TransferProgress| cb(p))
-            as Box<dyn Fn(TransferProgress) + Send + Sync>);
+            as Box<dyn Fn(TransferProgress) + Send + Sync + 'static>);
+
+        let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+
         tracing::info!(
             "📤 [FastShare] Sending file: {} ({}/{})",
             path,
@@ -156,6 +175,8 @@ async fn do_send_files(
                 NetworkSpeed::Fast,
                 total,
                 (idx + 1) as u32,
+                total_batch_size,
+                batch_bytes_already_sent,
                 None,
                 progress_cb_opt,
             )
@@ -163,17 +184,19 @@ async fn do_send_files(
         {
             Ok(_) => {
                 success_count += 1;
+                batch_bytes_already_sent += file_size;
                 // Add to history
                 let mut history = state.transfer_history.lock().unwrap();
                 history.push(fastshare::app::TransferHistoryItem {
                     file_name: path.clone(),
-                    size: 0,
+                    size: file_size,
                     status: "Success".into(),
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     is_incoming: false,
                     saved_path: Some(path.clone()),
                     total_files: total,
                 });
+                drop(history);
                 fastshare::app::App::save_history(&state);
             }
             Err(e) => {
@@ -192,6 +215,7 @@ async fn do_send_files(
                     saved_path: Some(path.clone()),
                     total_files: total,
                 });
+                drop(history);
                 fastshare::app::App::save_history(&state);
                 return err_msg;
             }
@@ -254,13 +278,19 @@ pub fn get_pending_incoming() -> String {
     let state_opt = GLOBAL_APP_STATE.lock().unwrap().clone();
     if let Some(state) = state_opt {
         if let Ok(guard) = state.pending_incoming_display.lock() {
-            if let Some((ref file_id, ref from_addr, ref file_name, total_files, total_size)) =
-                *guard
+            if let Some((
+                ref file_id,
+                ref from_addr,
+                ref file_name,
+                total_files,
+                total_size,
+                total_batch_size,
+            )) = *guard
             {
                 tracing::info!(
-                    "📥 [FastShare] Pending incoming: file={} size={} from={} ({} files)",
+                    "📥 [FastShare] Pending incoming: file={} batch_size={} from={} ({} files)",
                     file_name,
-                    total_size,
+                    total_batch_size,
                     from_addr,
                     total_files
                 );
@@ -270,6 +300,7 @@ pub fn get_pending_incoming() -> String {
                     "file_name": file_name,
                     "total_files": total_files,
                     "total_size": total_size,
+                    "total_batch_size": total_batch_size,
                 });
                 return obj.to_string();
             }
@@ -319,14 +350,39 @@ pub fn get_incoming_progress() -> String {
             } else {
                 0.0
             };
+
+            let received_bytes =
+                (received_chunks as u64 * s.plan.chunk_size).min(s.plan.total_size);
+            let batch_progress = if s.plan.total_batch_size > 0 {
+                (s.plan.batch_bytes_already_sent + received_bytes) as f64
+                    / s.plan.total_batch_size as f64
+            } else {
+                progress
+            };
+
+            let elapsed = s.start_time.elapsed().as_secs_f64();
+            let throughput_bps = if elapsed > 0.0 {
+                (received_bytes as f64 / elapsed) as u64
+            } else {
+                0
+            };
+
+            let is_reassembling = received_chunks as u64 == s.plan.total_chunks;
             progress_list.push(serde_json::json!({
                 "file_name": s.plan.file_name,
                 "file_id": s.plan.file_id,
                 "progress": progress,
                 "total_bytes": s.plan.total_size,
-                "received_bytes": received_chunks * s.plan.chunk_size, // Approximation
+                "received_bytes": received_bytes,
                 "total_chunks": s.plan.total_chunks,
-                "received_chunks": received_chunks,
+                "received_chunks": received_chunks as u64,
+                "current_file_index": s.plan.current_file_index,
+                "total_files": s.plan.total_files,
+                "total_batch_size": s.plan.total_batch_size,
+                "batch_bytes_received": s.plan.batch_bytes_already_sent + received_bytes,
+                "batch_progress": batch_progress,
+                "throughput_bps": throughput_bps,
+                "status": if is_reassembling { "Reassembling..." } else { "Receiving..." },
             }));
         }
         serde_json::to_string(&progress_list).unwrap_or_else(|_| "[]".into())

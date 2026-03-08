@@ -46,7 +46,7 @@ const MAX_PARALLEL_STREAMS: usize = 32;
 // ── Data Structures ──
 
 /// Progress callback type for tracking transfer progress.
-pub type ProgressCallback = Box<dyn Fn(TransferProgress) + Send + Sync>;
+pub type ProgressCallback = Box<dyn Fn(TransferProgress) + Send + Sync + 'static>;
 
 /// Real-time transfer progress information.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -67,6 +67,10 @@ pub struct TransferProgress {
     pub current_file_index: u32,
     /// Total number of files in this transfer session
     pub total_files: u32,
+    /// Overall batch size in bytes
+    pub total_batch_size: u64,
+    /// Total bytes sent across the entire batch so far
+    pub batch_bytes_sent: u64,
     /// Current throughput in bytes per second
     pub throughput_bps: u64,
     /// Estimated time remaining in seconds
@@ -132,6 +136,8 @@ impl TransferSender {
         network_speed: NetworkSpeed,
         total_files: u32,
         current_file_index: u32,
+        total_batch_size: u64,
+        batch_bytes_already_sent: u64,
         resume_state: Option<&TransferState>,
         progress_cb: Option<ProgressCallback>,
     ) -> Result<()> {
@@ -140,7 +146,15 @@ impl TransferSender {
 
         // ── Plan Chunks ──
         let chunker = FileChunker::adaptive(network_speed);
-        let plan = chunker.plan_file(&file_path, total_files).await?;
+        let plan = chunker
+            .plan_file(
+                &file_path,
+                total_files,
+                current_file_index,
+                total_batch_size,
+                batch_bytes_already_sent,
+            )
+            .await?;
 
         info!(
             "📤 Starting transfer: '{}' ({} bytes, {} chunks, {} streams)",
@@ -210,18 +224,31 @@ impl TransferSender {
             let plan_id = plan.file_id.clone();
             let plan_size = plan.total_size;
             let plan_total_chunks = plan.total_chunks;
+            let plan_total_batch_size = plan.total_batch_size;
+            let plan_batch_already_sent = plan.batch_bytes_already_sent;
+
             Some(tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_millis(150));
+                let start_time = std::time::Instant::now();
                 loop {
                     interval.tick().await;
                     let bs = bytes_sent_p.load(Ordering::Relaxed);
                     let cs = chunks_sent_p.load(Ordering::Relaxed);
-                    let eta = if cs > 0 && plan_total_chunks > 0 {
-                        let remaining = (plan_total_chunks - cs) as f64;
-                        remaining * 0.05
+                    let elapsed = start_time.elapsed().as_secs_f64();
+
+                    let throughput_bps = if elapsed > 0.0 {
+                        (bs as f64 / elapsed) as u64
+                    } else {
+                        0
+                    };
+
+                    let eta = if throughput_bps > 0 {
+                        let remaining_bytes = plan_size.saturating_sub(bs);
+                        remaining_bytes as f64 / throughput_bps as f64
                     } else {
                         0.0
                     };
+
                     cb_clone(TransferProgress {
                         file_name: plan_name.clone(),
                         file_id: plan_id.clone(),
@@ -231,7 +258,9 @@ impl TransferSender {
                         total_chunks: plan_total_chunks,
                         current_file_index,
                         total_files: total_files_count,
-                        throughput_bps: 0,
+                        total_batch_size: plan_total_batch_size,
+                        batch_bytes_sent: plan_batch_already_sent + bs,
+                        throughput_bps,
                         eta_seconds: eta,
                         complete: cs >= plan_total_chunks,
                     });
@@ -343,6 +372,8 @@ impl TransferSender {
                 total_chunks: plan.total_chunks,
                 current_file_index,
                 total_files: plan.total_files,
+                total_batch_size: plan.total_batch_size,
+                batch_bytes_sent: plan.batch_bytes_already_sent + total_sent,
                 throughput_bps: (throughput_mbps * 1024.0 * 1024.0) as u64,
                 eta_seconds: 0.0,
                 complete: true,

@@ -200,7 +200,13 @@ pub fn app() -> Element {
     let mut status_message = use_signal(|| None::<String>);
     let mut history_tab = use_signal(|| "All");
     let refresh_tick = use_signal(|| 0u32);
-    let progress_tick = use_signal(|| 0u32);
+
+    // Reactive signals for progress
+    let mut transfer_progress_signal =
+        use_signal(|| None::<crate::transfer::sender::TransferProgress>);
+    let mut incoming_progress_signal =
+        use_signal(|| Vec::<crate::ui::gui_bridge::IncomingProgress>::new());
+    let mut transfer_history_signal = use_signal(|| Vec::<crate::app::TransferHistoryItem>::new());
 
     // Poll every 1.5s so Nearby Devices list updates when phone is discovered
     use_effect(move || {
@@ -212,24 +218,50 @@ pub fn app() -> Element {
             }
         });
     });
-    // Poll progress every 200ms when transferring
+
+    // Poll progress every 200ms
     use_effect(move || {
-        let mut tick = progress_tick;
         let mut stat = status_message;
+        let mut tp = transfer_progress_signal;
+        let mut ip = incoming_progress_signal;
+        let mut th = transfer_history_signal;
         spawn(async move {
-            for _ in 0..10000 {
+            loop {
                 tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-                tick.set(tick() + 1);
+
+                // Sync bridge state into Dioxus signals to trigger re-renders
+                tp.set(gui_bridge::get_transfer_progress());
+                ip.set(gui_bridge::get_incoming_progress());
+                th.set(gui_bridge::get_transfer_history());
+
+                // Get real-time status updates from backend
                 if let Some(msg) = gui_bridge::take_backend_status() {
                     stat.set(Some(msg));
+                    // Auto-clear status after 5 seconds
+                    spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                        stat.set(None);
+                    });
+                }
+
+                // Check for completed transfers to auto-clear
+                if let Some(prog) = gui_bridge::get_transfer_progress() {
+                    if prog.complete {
+                        spawn(async move {
+                            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                            gui_bridge::clear_transfer_progress();
+                        });
+                    }
                 }
             }
         });
     });
 
-    let transfer_progress = gui_bridge::get_transfer_progress();
-    let incoming_progress = gui_bridge::get_incoming_progress();
-    let transfer_history = gui_bridge::get_transfer_history();
+    // Read signals so component updates
+    let _refresh_eval = refresh_tick();
+    let transfer_progress = transfer_progress_signal();
+    let incoming_progress = incoming_progress_signal();
+    let transfer_history = transfer_history_signal();
 
     let filtered_history: Vec<_> = transfer_history
         .iter()
@@ -262,11 +294,17 @@ pub fn app() -> Element {
             .ok()
             .and_then(|g| g.clone())
     });
-    let (pending_file_id, pending_from, pending_fname, pending_total_files, pending_total_size) =
-        pending
-            .as_ref()
-            .map(|p| (p.0.clone(), format!("{}", p.1), p.2.clone(), p.3, p.4))
-            .unwrap_or((String::new(), String::new(), String::new(), 1, 0));
+    let (
+        pending_file_id,
+        pending_from,
+        pending_fname,
+        pending_total_files,
+        pending_total_size,
+        pending_batch_size,
+    ) = pending
+        .as_ref()
+        .map(|p| (p.0.clone(), format!("{}", p.1), p.2.clone(), p.3, p.4, p.5))
+        .unwrap_or((String::new(), String::new(), String::new(), 1, 0, 0));
     let show_incoming = pending.is_some();
     let pending_id_accept = pending_file_id.clone();
     let pending_id_decline = pending_file_id.clone();
@@ -337,18 +375,19 @@ pub fn app() -> Element {
                                         return;
                                     }
                                     let addr = std::net::SocketAddr::new(device.ip_address, device.port);
-                                    let mut sent = 0;
-                                    for path in paths.iter() {
-                                        match b.send_tx.try_send((path.clone(), addr)) {
-                                            Ok(_) => sent += 1,
-                                            Err(e) => tracing::error!("Failed to queue file: {}", e),
+                                    let paths_list: Vec<_> = paths.iter().cloned().collect();
+                                    let count = paths_list.len();
+                                    match b.send_tx.try_send((paths_list, addr)) {
+                                        Ok(_) => {
+                                            status_message.set(Some(format!("Sent request for {} file(s)", count)));
+                                            send_screen.set(false);
+                                            selected_files.set(Vec::new());
+                                            selected_device.set(None);
                                         }
-                                    }
-                                    if sent > 0 {
-                                        status_message.set(Some(format!("Sent request for {} file(s)", sent)));
-                                        send_screen.set(false);
-                                        selected_files.set(Vec::new());
-                                        selected_device.set(None);
+                                        Err(e) => {
+                                            tracing::error!("Failed to queue batch: {}", e);
+                                            status_message.set(Some(format!("Failed to send: {}", e)));
+                                        }
                                     }
                                 } else {
                                     status_message.set(Some("Please select a device.".into()));
@@ -502,21 +541,44 @@ pub fn app() -> Element {
                         h4 { style: "margin: 0 0 1.2rem; color: #FF6B6B; font-size: 1.1rem; display: flex; align-items: center; gap: 0.6rem;", "📥 Receiving {incoming_progress.len()} Files" }
                         div {
                             style: "display: flex; flex-direction: column; gap: 1rem;",
-                            for ip in &incoming_progress {
-                                div {
-                                    style: "padding: 1rem; background: rgba(15, 52, 96, 0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);",
-                                    p { style: "margin: 0 0 0.5rem; font-size: 0.95rem; font-weight: bold; color: white;", "{ip.file_name}" }
-                                    div {
-                                        style: "width: 100%; height: 8px; background: #1a1a2e; border-radius: 4px; overflow: hidden; margin: 0.6rem 0;",
+                            {
+                                incoming_progress.into_iter().map(|ip| {
+                                    let pct = format_size_pct(ip.progress * 100.0);
+                                    let received = format_size(ip.received_bytes);
+                                    let total = format_size(ip.total_bytes);
+                                    let current = ip.current_file_index;
+                                    let total_fs = ip.total_files;
+                                    let rec_ch = ip.received_chunks;
+                                    let tot_ch = ip.total_chunks;
+                                    let fname = ip.file_name.clone();
+                                    let label = if total_fs > 1 {
+                                        format!("File {}/{} • {}", current, total_fs, pct)
+                                    } else {
+                                        format!("{} • {}/{} Chunks", pct, rec_ch, tot_ch)
+                                    };
+                                    let range = format!("{} / {}", received, total);
+
+                                    let status = ip.status.clone();
+
+                                    rsx! {
                                         div {
-                                            style: "height: 100%; background: #FF6B6B; width: {format_size_pct(ip.progress * 100.0)};",
+                                            key: "{fname}",
+                                            style: "padding: 1rem; background: rgba(15, 52, 96, 0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);",
+                                            p { style: "margin: 0 0 0.2rem; font-size: 0.95rem; font-weight: bold; color: white;", "{fname}" }
+                                            p { style: "margin: 0 0 0.5rem; font-size: 0.8rem; color: #a9b5c9;", "{status}" }
+                                            div {
+                                                style: "width: 100%; height: 8px; background: #1a1a2e; border-radius: 4px; overflow: hidden; margin: 0.6rem 0;",
+                                                div {
+                                                    style: "height: 100%; background: #FF6B6B; width: {pct};",
+                                                }
+                                            }
+                                            div { style: "display: flex; justify-content: space-between; font-size: 0.8rem; color: #a9b5c9;",
+                                                span { "{label}" }
+                                                span { "{range}" }
+                                            }
                                         }
                                     }
-                                    div { style: "display: flex; justify-content: space-between; font-size: 0.8rem; color: #a9b5c9;",
-                                        span { "{format_size_pct(ip.progress * 100.0)} • {ip.received_chunks}/{ip.total_chunks} Chunks" }
-                                        span { "{format_size(ip.received_bytes)} / {format_size(ip.total_bytes)}" }
-                                    }
-                                }
+                                })
                             }
                         }
                     }
@@ -591,7 +653,7 @@ pub fn app() -> Element {
                             if pending_total_files > 1 {
                                 div { style: "margin-top: 1rem; background: #4ECDC4; color: #1a1a2e; padding: 0.5rem 1rem; border-radius: 12px; font-weight: 900; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;",
                                     span { "+ {pending_total_files - 1} MORE" }
-                                    span { style: "opacity: 0.8; font-size: 0.8rem;", "{format_size(pending_total_size)}" }
+                                    span { style: "opacity: 0.8; font-size: 0.8rem;", "{format_size(pending_batch_size)}" }
                                 }
                             } else {
                                 div { style: "margin-top: 0.5rem; text-align: right;",

@@ -7,8 +7,8 @@ use std::sync::OnceLock;
 
 use crate::app::{AppState, TransferHistoryItem};
 
-/// Channel message: send this file to this peer address.
-pub type SendFileRequest = (PathBuf, SocketAddr);
+/// Channel message: send these files to this peer address.
+pub type SendFileRequest = (Vec<PathBuf>, SocketAddr);
 
 /// Incoming file transfer progress for UI display.
 #[derive(Debug, Clone)]
@@ -19,6 +19,11 @@ pub struct IncomingProgress {
     pub received_bytes: u64,
     pub total_chunks: u64,
     pub received_chunks: u64,
+    pub current_file_index: u32,
+    pub total_files: u32,
+    pub total_batch_size: u64,
+    pub batch_bytes_received: u64,
+    pub status: String,
 }
 
 /// Shared bridge set by the backend when ready, read by the GUI.
@@ -71,6 +76,15 @@ pub fn get_transfer_progress() -> Option<crate::transfer::sender::TransferProgre
     })
 }
 
+/// Clear the current transfer progress (set to None).
+pub fn clear_transfer_progress() {
+    if let Some(b) = BRIDGE.get() {
+        if let Ok(mut guard) = b.state.transfer_progress.lock() {
+            *guard = None;
+        }
+    }
+}
+
 /// Get transfer history (sent + received files).
 pub fn get_transfer_history() -> Vec<TransferHistoryItem> {
     BRIDGE
@@ -98,9 +112,19 @@ pub fn get_incoming_progress() -> Vec<IncomingProgress> {
             file_name: s.plan.file_name.clone(),
             progress,
             total_bytes: s.plan.total_size,
-            received_bytes: (received * s.plan.chunk_size).min(s.plan.total_size),
+            received_bytes: (received as u64 * s.plan.chunk_size).min(s.plan.total_size),
             total_chunks: s.plan.total_chunks,
-            received_chunks: received,
+            received_chunks: u64::from(received as u32),
+            current_file_index: s.plan.current_file_index,
+            total_files: s.plan.total_files,
+            total_batch_size: s.plan.total_batch_size,
+            batch_bytes_received: s.plan.batch_bytes_already_sent
+                + (received as u64 * s.plan.chunk_size).min(s.plan.total_size),
+            status: if received as u64 == s.plan.total_chunks {
+                "Reassembling...".into()
+            } else {
+                "Receiving...".into()
+            },
         });
     }
     list
