@@ -38,10 +38,10 @@ use crate::transfer::scheduler::StreamScheduler;
 // ── Constants ──
 
 /// Default number of parallel streams for sending
-const DEFAULT_PARALLEL_STREAMS: usize = 8;
+const DEFAULT_PARALLEL_STREAMS: usize = 16;
 
 /// Maximum number of parallel streams
-const MAX_PARALLEL_STREAMS: usize = 32;
+const MAX_PARALLEL_STREAMS: usize = 64;
 
 // ── Data Structures ──
 
@@ -410,25 +410,58 @@ async fn send_chunk(
     let (data, checksum) = chunker.read_chunk(file_path, chunk_meta).await?;
 
     // ── Optionally compress the data ──
-    let (final_data, is_compressed) = match compression_algo {
-        Some("lz4") => {
-            let compressed = compression::lz4::compress(&data)?;
-            // Only use compression if it actually reduces size
-            if compressed.len() < data.len() {
-                (compressed, true)
-            } else {
-                (data, false)
+    // Determine if we should compress based on global setting and file extension
+    let should_compress = crate::is_compression_enabled() && {
+        // Auto-skip compression for already compressed file types
+        let ext = file_path
+            .extension()
+            .and_then(|s| s.to_str())
+            .unwrap_or("")
+            .to_lowercase();
+
+        !matches!(
+            ext.as_str(),
+            "mp4"
+                | "mkv"
+                | "avi"
+                | "jpg"
+                | "jpeg"
+                | "png"
+                | "gif"
+                | "zip"
+                | "rar"
+                | "7z"
+                | "gz"
+                | "mp3"
+                | "pdf"
+                | "apk"
+                | "webp"
+        )
+    };
+
+    let (final_data, is_compressed) = if should_compress {
+        match compression_algo {
+            Some("lz4") => {
+                let compressed = compression::lz4::compress(&data)?;
+                // Only use compression if it actually reduces size
+                if compressed.len() < data.len() {
+                    (compressed, true)
+                } else {
+                    (data, false)
+                }
             }
-        }
-        Some("zstd") => {
-            let compressed = compression::zstd::compress(&data)?;
-            if compressed.len() < data.len() {
-                (compressed, true)
-            } else {
-                (data, false)
+            Some("zstd") => {
+                let compressed = compression::zstd::compress(&data)?;
+                if compressed.len() < data.len() {
+                    (compressed, true)
+                } else {
+                    (data, false)
+                }
             }
+            _ => (data, false),
         }
-        _ => (data, false),
+    } else {
+        (data, false)
     };
 
     // ── Build metadata with checksum ──

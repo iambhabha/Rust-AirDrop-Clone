@@ -10,6 +10,27 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `GLOBAL_APP_STATE`, `GLOBAL_DISCOVERY`, `GLOBAL_SERVER`, `GLOBAL_TRANSFER_PROGRESS`, `RUNTIME`, `TransferStatus`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `deref`, `deref`, `deref`, `deref`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`
 
+/// Enable or disable chunk checksum verification.
+/// Disabling gives ~10-15% speed boost on local networks.
+void setChecksumEnabled({required bool enabled}) =>
+    RustLib.instance.api.crateApiSimpleSetChecksumEnabled(enabled: enabled);
+
+/// Get whether checksum verification is enabled.
+bool getChecksumEnabled() =>
+    RustLib.instance.api.crateApiSimpleGetChecksumEnabled();
+
+/// Enable or disable file compression.
+void setCompressionEnabled({required bool enabled}) =>
+    RustLib.instance.api.crateApiSimpleSetCompressionEnabled(enabled: enabled);
+
+/// Get whether file compression is enabled.
+bool getCompressionEnabled() =>
+    RustLib.instance.api.crateApiSimpleGetCompressionEnabled();
+
+/// Get all current settings as JSON
+Future<String> getSettings() =>
+    RustLib.instance.api.crateApiSimpleGetSettings();
+
 /// Start the background FastShare server and return some details
 Future<String> startFastshare({
   required String downloadPath,
@@ -28,8 +49,8 @@ Future<String> sendFilesToIp({
   targetIp: targetIp,
 );
 
-/// Open a file or directory in the system explorer
-Future<void> openFileInExplorer({required String path}) =>
+/// Open a file or folder using the system default handler
+Future<String> openFileInExplorer({required String path}) =>
     RustLib.instance.api.crateApiSimpleOpenFileInExplorer(path: path);
 
 /// Get transfer history as JSON

@@ -8,19 +8,18 @@
 //!
 //! | Network Speed | Chunk Size |
 //! |---------------|-----------|
-//! | < 100 Mbps    | 4 MB      |
-//! | 100 - 999 Mbps| 8 MB      |
-//! | 1 - 5 Gbps    | 16 MB     |
-//! | > 5 Gbps      | 32 MB     |
+//! | < 100 Mbps    | 1 MB      |
+//! | 100 - 999 Mbps| 2 MB      |
+//! | 1 - 5 Gbps    | 4 MB      |
+//! | > 5 Gbps      | 6 MB     |
 //!
-//! Larger chunks reduce per-chunk overhead but increase retransmission cost
-//! on lossy networks. The adaptive sizing balances throughput and reliability.
+//! Larger chunks reduce per-chunk overhead. Checksum uses fast CRC32 instead
+//! of SHA-256 for maximum throughput on local networks.
 
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, SeekFrom};
 use tracing::{debug, info};
@@ -28,17 +27,17 @@ use uuid::Uuid;
 
 // ── Constants ──
 
-/// Default chunk size: 1 MB
-pub const DEFAULT_CHUNK_SIZE: u64 = 1 * 1024 * 1024;
+/// Default chunk size: 4 MB (100 Mbps - 999 Mbps WiFi)
+pub const DEFAULT_CHUNK_SIZE: u64 = 2 * 1024 * 1024;
 
-/// Fast network chunk size: 2 MB (1-5 Gbps)
-pub const FAST_CHUNK_SIZE: u64 = 2 * 1024 * 1024;
+/// Fast network chunk size: 8 MB (1-5 Gbps)
+pub const FAST_CHUNK_SIZE: u64 = 4 * 1024 * 1024;
 
-/// Ultra-fast network chunk size: 4 MB (>5 Gbps)
-pub const ULTRA_FAST_CHUNK_SIZE: u64 = 4 * 1024 * 1024;
+/// Ultra-fast network chunk size: 16 MB (>5 Gbps)
+pub const ULTRA_FAST_CHUNK_SIZE: u64 = 6 * 1024 * 1024;
 
-/// Slow network chunk size: 512 KB (<100 Mbps)
-pub const SLOW_CHUNK_SIZE: u64 = 512 * 1024;
+/// Slow network chunk size: 1 MB (<100 Mbps)
+pub const SLOW_CHUNK_SIZE: u64 = 1 * 1024 * 1024;
 
 // ── Data Structures ──
 
@@ -184,10 +183,13 @@ impl FileChunker {
         })
     }
 
-    /// Read a specific chunk from a file and compute its SHA-256 checksum.
+    /// Read a specific chunk from a file and compute a fast CRC32 checksum.
     ///
     /// Uses seeking to read only the required bytes — never loads the
     /// entire file into memory. This is critical for 100GB+ files.
+    ///
+    /// Uses CRC32 instead of SHA-256 for ~10x faster checksumming on local
+    /// networks where speed matters more than cryptographic integrity.
     pub async fn read_chunk(&self, path: &Path, chunk: &ChunkMeta) -> Result<(Vec<u8>, String)> {
         let mut file = File::open(path)
             .await
@@ -204,27 +206,35 @@ impl FileChunker {
             .await
             .context("Failed to read chunk data")?;
 
-        // Compute SHA-256 checksum
-        let mut hasher = Sha256::new();
-        hasher.update(&buffer);
-        let checksum = hex::encode(hasher.finalize());
-
-        debug!(
-            "Read chunk {}/{}: {} bytes, checksum: {}",
-            chunk.chunk_index + 1,
-            chunk.total_chunks,
-            buffer.len(),
-            &checksum[..16]
-        );
+        // Compute CRC32 checksum ONLY if enabled in settings (skip = max speed)
+        let checksum = if crate::is_checksum_enabled() {
+            let cs = format!("{:08x}", crc32fast::hash(&buffer));
+            debug!(
+                "Read chunk {}/{}: {} bytes, crc32: {}",
+                chunk.chunk_index + 1,
+                chunk.total_chunks,
+                buffer.len(),
+                &cs
+            );
+            cs
+        } else {
+            debug!(
+                "Read chunk {}/{}: {} bytes, checksum skipped (max speed mode)",
+                chunk.chunk_index + 1,
+                chunk.total_chunks,
+                buffer.len(),
+            );
+            String::new() // Empty = receiver also skips verification
+        };
 
         Ok((buffer, checksum))
     }
 
-    /// Compute the SHA-256 checksum of the entire file for final verification.
+    /// Compute the CRC32 checksum of the entire file for final verification.
     pub async fn compute_file_hash(path: &Path) -> Result<String> {
         let mut file = File::open(path).await?;
-        let mut hasher = Sha256::new();
-        let mut buffer = vec![0u8; 1024 * 1024]; // 1 MB read buffer
+        let mut hasher = crc32fast::Hasher::new();
+        let mut buffer = vec![0u8; 4 * 1024 * 1024]; // 4 MB read buffer
 
         loop {
             let bytes_read = file.read(&mut buffer).await?;
@@ -234,7 +244,7 @@ impl FileChunker {
             hasher.update(&buffer[..bytes_read]);
         }
 
-        Ok(hex::encode(hasher.finalize()))
+        Ok(format!("{:08x}", hasher.finalize()))
     }
 
     /// Get the chunk size being used.

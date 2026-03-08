@@ -16,6 +16,53 @@ lazy_static::lazy_static! {
     static ref GLOBAL_APP_STATE: Mutex<Option<Arc<AppState>>> = Mutex::new(None);
     static ref GLOBAL_DISCOVERY: Mutex<Option<fastshare::network::discovery::DiscoveryService>> = Mutex::new(None);
 }
+// Checksum toggle uses fastshare::CHECKSUM_ENABLED AtomicBool from lib.rs
+
+/// Enable or disable chunk checksum verification.
+/// Disabling gives ~10-15% speed boost on local networks.
+#[flutter_rust_bridge::frb(sync)]
+pub fn set_checksum_enabled(enabled: bool) {
+    fastshare::set_checksum_enabled(enabled);
+    tracing::info!(
+        "⚙️ Checksum verification: {}",
+        if enabled { "ON" } else { "OFF" }
+    );
+}
+
+/// Get whether checksum verification is enabled.
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_checksum_enabled() -> bool {
+    fastshare::is_checksum_enabled()
+}
+
+/// Enable or disable file compression.
+#[flutter_rust_bridge::frb(sync)]
+pub fn set_compression_enabled(enabled: bool) {
+    fastshare::set_compression_enabled(enabled);
+    tracing::info!(
+        "🗜️ Compression: {}",
+        if enabled {
+            "ON (Auto-skip videos/zip)"
+        } else {
+            "OFF"
+        }
+    );
+}
+
+/// Get whether file compression is enabled.
+#[flutter_rust_bridge::frb(sync)]
+pub fn get_compression_enabled() -> bool {
+    fastshare::is_compression_enabled()
+}
+
+/// Get all current settings as JSON
+pub fn get_settings() -> String {
+    serde_json::json!({
+        "checksum_enabled": fastshare::is_checksum_enabled(),
+        "compression_enabled": fastshare::is_compression_enabled(),
+    })
+    .to_string()
+}
 
 #[flutter_rust_bridge::frb(init)]
 pub fn init_app() {
@@ -161,6 +208,7 @@ async fn do_send_files(
             as Box<dyn Fn(TransferProgress) + Send + Sync + 'static>);
 
         let file_size = std::fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+        let file_start_time = std::time::Instant::now();
 
         tracing::info!(
             "📤 [FastShare] Sending file: {} ({}/{})",
@@ -195,6 +243,7 @@ async fn do_send_files(
                     is_incoming: false,
                     saved_path: Some(path.clone()),
                     total_files: total,
+                    time_taken_secs: Some(file_start_time.elapsed().as_secs_f64()),
                 });
                 drop(history);
                 fastshare::app::App::save_history(&state);
@@ -214,6 +263,7 @@ async fn do_send_files(
                     is_incoming: false,
                     saved_path: Some(path.clone()),
                     total_files: total,
+                    time_taken_secs: None,
                 });
                 drop(history);
                 fastshare::app::App::save_history(&state);

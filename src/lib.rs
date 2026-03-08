@@ -25,3 +25,35 @@ pub mod storage;
 pub mod transfer;
 pub mod ui;
 pub mod wifi_direct;
+
+use std::sync::atomic::{AtomicBool, Ordering};
+
+/// Global flag: whether to verify chunk checksums.
+/// Off by default for max speed. Can be toggled from Flutter settings.
+pub static CHECKSUM_ENABLED: AtomicBool = AtomicBool::new(true);
+
+/// Global flag: whether to enable compression.
+/// Off by default for high-speed networks, on for slow networks.
+pub static COMPRESSION_ENABLED: AtomicBool = AtomicBool::new(false);
+
+/// Check if checksum verification is enabled.
+#[inline]
+pub fn is_checksum_enabled() -> bool {
+    CHECKSUM_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Enable or disable checksum verification.
+pub fn set_checksum_enabled(enabled: bool) {
+    CHECKSUM_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+/// Check if compression is enabled.
+#[inline]
+pub fn is_compression_enabled() -> bool {
+    COMPRESSION_ENABLED.load(Ordering::Relaxed)
+}
+
+/// Enable or disable compression.
+pub fn set_compression_enabled(enabled: bool) {
+    COMPRESSION_ENABLED.store(enabled, Ordering::Relaxed);
+}

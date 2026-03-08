@@ -200,13 +200,14 @@ pub fn app() -> Element {
     let mut status_message = use_signal(|| None::<String>);
     let mut history_tab = use_signal(|| "All");
     let refresh_tick = use_signal(|| 0u32);
+    let mut checksum_enabled_signal = use_signal(|| crate::is_checksum_enabled());
+    let mut compression_enabled_signal = use_signal(|| crate::is_compression_enabled());
 
     // Reactive signals for progress
-    let mut transfer_progress_signal =
-        use_signal(|| None::<crate::transfer::sender::TransferProgress>);
-    let mut incoming_progress_signal =
+    let transfer_progress_signal = use_signal(|| None::<crate::transfer::sender::TransferProgress>);
+    let incoming_progress_signal =
         use_signal(|| Vec::<crate::ui::gui_bridge::IncomingProgress>::new());
-    let mut transfer_history_signal = use_signal(|| Vec::<crate::app::TransferHistoryItem>::new());
+    let transfer_history_signal = use_signal(|| Vec::<crate::app::TransferHistoryItem>::new());
 
     // Poll every 1.5s so Nearby Devices list updates when phone is discovered
     use_effect(move || {
@@ -313,14 +314,51 @@ pub fn app() -> Element {
         div {
             style: "display: flex; flex-direction: column; align-items: center; min-height: 100vh; background-color: #1a1a2e; color: white; font-family: 'Inter', system-ui, sans-serif; padding: 2rem; overflow-x: hidden;",
 
-            // Header
-            h1 {
-                style: "font-size: 3.5rem; margin-bottom: 0.5rem; background: linear-gradient(45deg, #FF6B6B, #4ECDC4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 900;",
-                "⚡ FastShare"
-            }
-            p {
-                style: "font-size: 1.25rem; margin-bottom: 2.5rem; color: #a9b5c9; letter-spacing: 1px;",
-                "The Ultimate P2P File Transfer Protocol"
+            // Header and Settings
+            div {
+                style: "display: flex; justify-content: space-between; width: 100%; max-width: 650px; align-items: flex-start; margin-bottom: 2.5rem;",
+                div {
+                    h1 {
+                        style: "font-size: 3.5rem; margin-bottom: 0.5rem; background: linear-gradient(45deg, #FF6B6B, #4ECDC4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 900;",
+                        "⚡ FastShare"
+                    }
+                    p {
+                        style: "font-size: 1.25rem; margin: 0; color: #a9b5c9; letter-spacing: 1px;",
+                        "The Ultimate P2P File Transfer Protocol"
+                    }
+                }
+
+                div {
+                    style: "display: flex; gap: 0.8rem; align-items: center; margin-top: 1rem;",
+                    button {
+                        style: if compression_enabled_signal() {
+                            "padding: 0.6rem 1rem; border-radius: 12px; background: rgba(52, 152, 219, 0.1); color: #3498DB; border: 1px solid rgba(52, 152, 219, 0.3); cursor: pointer; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.95rem;"
+                        } else {
+                            "padding: 0.6rem 1rem; border-radius: 12px; background: rgba(78, 205, 196, 0.1); color: #4ECDC4; border: 1px solid rgba(78, 205, 196, 0.3); cursor: pointer; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.95rem;"
+                        },
+                        onclick: move |_| {
+                            let new_val = !crate::is_compression_enabled();
+                            crate::set_compression_enabled(new_val);
+                            compression_enabled_signal.set(new_val);
+                            status_message.set(Some(if new_val { "Compression ON (Auto-skip)".into() } else { "Compression OFF (Raw Transfer)".into() }));
+                        },
+                        if compression_enabled_signal() { "🗜️ Zip: ON" } else { "🌬️ Zip: OFF" }
+                    }
+                    button {
+                        style: if checksum_enabled_signal() {
+                            "padding: 0.6rem 1rem; border-radius: 12px; background: rgba(255, 107, 107, 0.1); color: #FF6B6B; border: 1px solid rgba(255, 107, 107, 0.3); cursor: pointer; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.95rem;"
+                        } else {
+                            "padding: 0.6rem 1rem; border-radius: 12px; background: rgba(78, 205, 196, 0.1); color: #4ECDC4; border: 1px solid rgba(78, 205, 196, 0.3); cursor: pointer; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.95rem;"
+                        },
+                        onclick: move |_| {
+                            let new_val = !crate::is_checksum_enabled();
+                            crate::set_checksum_enabled(new_val);
+                            checksum_enabled_signal.set(new_val);
+                            status_message.set(Some(if new_val { "Checksum ON (Safe Mode)".into() } else { "Checksum OFF (Max Speed)".into() }));
+                        },
+                        if checksum_enabled_signal() { "🛡️ CRC32: ON" } else { "🚀 CRC32: OFF" }
+                    }
+                }
             }
 
             if send_screen() {

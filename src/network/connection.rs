@@ -32,16 +32,16 @@ use crate::network::handshake;
 // ── Constants ──
 
 /// Maximum concurrent bidirectional streams per connection.
-const MAX_CONCURRENT_BIDI_STREAMS: u32 = 64;
+const MAX_CONCURRENT_BIDI_STREAMS: u32 = 128;
 
 /// Maximum concurrent unidirectional streams per connection.
-const MAX_CONCURRENT_UNI_STREAMS: u32 = 64;
+const MAX_CONCURRENT_UNI_STREAMS: u32 = 128;
 
-/// Initial window size in bytes (16 MB).
-const INITIAL_WINDOW: u32 = 16 * 1024 * 1024;
+/// Initial window size in bytes (64 MB).
+const INITIAL_WINDOW: u32 = 64 * 1024 * 1024;
 
-/// Maximum window size in bytes (64 MB).
-const MAX_WINDOW: u32 = 64 * 1024 * 1024;
+/// Maximum window size in bytes (256 MB).
+const MAX_WINDOW: u32 = 256 * 1024 * 1024;
 
 /// Maximum idle timeout in milliseconds (2 minutes).
 const MAX_IDLE_TIMEOUT_MS: u32 = 120_000;
@@ -73,7 +73,7 @@ impl QuicServer {
         transport
             .max_concurrent_bidi_streams(VarInt::from_u32(MAX_CONCURRENT_BIDI_STREAMS))
             .max_concurrent_uni_streams(VarInt::from_u32(MAX_CONCURRENT_UNI_STREAMS))
-            .initial_mtu(1200)
+            .initial_mtu(1452) // Standard Ethernet MTU (1500 - 28 byte IP+UDP header)
             .max_idle_timeout(Some(
                 quinn::IdleTimeout::try_from(std::time::Duration::from_millis(
                     MAX_IDLE_TIMEOUT_MS as u64,
@@ -83,9 +83,9 @@ impl QuicServer {
             .keep_alive_interval(Some(std::time::Duration::from_millis(
                 KEEP_ALIVE_INTERVAL_MS,
             )))
-            .receive_window(VarInt::from_u32(MAX_WINDOW))
-            .send_window(INITIAL_WINDOW as u64)
-            .stream_receive_window(VarInt::from_u32(INITIAL_WINDOW));
+            .receive_window(VarInt::from_u64(MAX_WINDOW as u64).unwrap())
+            .send_window(MAX_WINDOW as u64)
+            .stream_receive_window(VarInt::from_u64(INITIAL_WINDOW as u64).unwrap());
 
         let transport = Arc::new(transport);
 
@@ -365,6 +365,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                 is_incoming: true,
                                 saved_path: None,
                                 total_files: plan.total_files,
+                                time_taken_secs: None,
                             });
                             drop(history);
                             crate::app::App::save_history(&app_state);
@@ -376,7 +377,9 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
 
                         tokio::spawn(async move {
                             if let Some(rx_state) = rx.get_reception(&file_id) {
+                                let receive_start = std::time::Instant::now();
                                 rx_state.completion_notify.notified().await;
+                                let time_taken = receive_start.elapsed().as_secs_f64();
                                 let out_dir =
                                     std::path::PathBuf::from(&app_state_inner.download_path);
                                 std::fs::create_dir_all(&out_dir).unwrap_or(());
@@ -396,6 +399,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                         is_incoming: true,
                                         saved_path: Some(out_path.to_string_lossy().to_string()),
                                         total_files: plan.total_files,
+                                        time_taken_secs: None,
                                     });
                                     drop(history);
                                     crate::app::App::save_history(&app_state_inner);
@@ -414,6 +418,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                         is_incoming: true,
                                         saved_path: Some(out_path.to_string_lossy().to_string()),
                                         total_files: plan.total_files,
+                                        time_taken_secs: Some(time_taken),
                                     });
                                     drop(history);
                                     crate::app::App::save_history(&app_state_inner);
@@ -464,9 +469,9 @@ fn configure_client() -> Result<ClientConfig> {
     transport
         .max_concurrent_bidi_streams(VarInt::from_u32(MAX_CONCURRENT_BIDI_STREAMS))
         .max_concurrent_uni_streams(VarInt::from_u32(MAX_CONCURRENT_UNI_STREAMS))
-        .receive_window(VarInt::from_u32(MAX_WINDOW))
-        .send_window(INITIAL_WINDOW as u64)
-        .stream_receive_window(VarInt::from_u32(INITIAL_WINDOW))
+        .receive_window(VarInt::from_u64(MAX_WINDOW as u64).unwrap())
+        .send_window(MAX_WINDOW as u64)
+        .stream_receive_window(VarInt::from_u64(INITIAL_WINDOW as u64).unwrap())
         .keep_alive_interval(Some(std::time::Duration::from_millis(
             KEEP_ALIVE_INTERVAL_MS,
         )));

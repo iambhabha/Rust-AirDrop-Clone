@@ -1,0 +1,7 @@
+469:           _showSnackBar("Transfer completed!", action: "HISTORY");
+567:         _showSnackBar('Please select a device first!', isError: true);
+603:       _showSnackBar(
+919:   void _showSnackBar(String m, {String? action, bool isError = false}) {
+961:       _showSnackBar('Target set to $ip');
+1054:                           _showSnackBar('Device is offline');
+1388:   void _showSnackBar(String m) {

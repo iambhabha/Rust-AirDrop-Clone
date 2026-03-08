@@ -1841,6 +1841,7 @@ dependencies = [
  "base64",
  "bytes",
  "chrono",
+ "crc32fast",
  "dashmap 6.1.0",
  "dioxus",
  "dirs",

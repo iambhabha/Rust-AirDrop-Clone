@@ -1,7 +1,7 @@
 //! # Multi-Stream Transfer Receiver
 //!
 //! Receives file chunks from multiple QUIC streams simultaneously,
-//! verifies integrity via SHA-256, decompresses if needed, and
+//! verifies integrity via CRC32 (fast), decompresses if needed, and
 //! reassembles them into the original file.
 //!
 //! ## Reassembly Process
@@ -13,16 +13,15 @@
 //! 5. Verify final file hash
 
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use dashmap::DashMap;
 use quinn::{RecvStream, SendStream};
-use sha2::{Digest, Sha256};
 use tokio::sync::Notify;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::compression;
 use crate::storage::chunk_storage::ChunkStorage;
@@ -121,8 +120,8 @@ impl TransferReceiver {
         let is_compressed = comp_flag[0] != 0;
 
         // ── Read chunk data ──
-        let mut data = Vec::new();
-        let mut read_buf = vec![0u8; 64 * 1024]; // 64 KB read buffer
+        let mut data = Vec::with_capacity(chunk_meta.size as usize);
+        let mut read_buf = vec![0u8; 512 * 1024]; // 512 KB read buffer for speed
         loop {
             match recv.read(&mut read_buf).await? {
                 Some(n) => data.extend_from_slice(&read_buf[..n]),
@@ -140,25 +139,22 @@ impl TransferReceiver {
             data
         };
 
-        // ── Verify checksum ──
-        let mut hasher = Sha256::new();
-        hasher.update(&final_data);
-        let computed_checksum = hex::encode(hasher.finalize());
-
-        if !chunk_meta.checksum.is_empty() && computed_checksum != chunk_meta.checksum {
-            warn!(
-                "Checksum mismatch for chunk {} of '{}': expected {}, got {}",
-                chunk_meta.chunk_index,
-                chunk_meta.file_name,
-                &chunk_meta.checksum[..16],
-                &computed_checksum[..16]
-            );
-
-            // Send NAK
-            send.write_all(&[0x15]).await?;
-            send.finish()?;
-
-            anyhow::bail!("Checksum verification failed");
+        // ── Verify checksum (CRC32) — only if enabled in settings ──
+        if crate::is_checksum_enabled() && !chunk_meta.checksum.is_empty() {
+            let computed_checksum = format!("{:08x}", crc32fast::hash(&final_data));
+            if computed_checksum != chunk_meta.checksum {
+                warn!(
+                    "Checksum mismatch for chunk {} of '{}': expected {}, got {}",
+                    chunk_meta.chunk_index,
+                    chunk_meta.file_name,
+                    &chunk_meta.checksum,
+                    &computed_checksum
+                );
+                // Send NAK
+                send.write_all(&[0x15]).await?;
+                send.finish()?;
+                anyhow::bail!("Checksum verification failed");
+            }
         }
 
         // ── Store chunk ──

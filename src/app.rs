@@ -64,6 +64,7 @@ pub struct TransferHistoryItem {
     pub is_incoming: bool,
     pub saved_path: Option<String>,
     pub total_files: u32,
+    pub time_taken_secs: Option<f64>,
 }
 
 /// Top-level application that ties all subsystems together.
@@ -311,6 +312,7 @@ pub async fn run_send_loop(
                         as Box<dyn Fn(TransferProgress) + Send + Sync + 'static>);
 
                     let file_size = std::fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
+                    let file_start_time = std::time::Instant::now();
 
                     if let Err(e) = sender
                         .send_file(
@@ -338,6 +340,7 @@ pub async fn run_send_loop(
                             is_incoming: false,
                             saved_path: Some(file_path.to_string_lossy().to_string()),
                             total_files,
+                            time_taken_secs: Some(file_start_time.elapsed().as_secs_f64()),
                         });
                         drop(history);
                         App::save_history(&state);
