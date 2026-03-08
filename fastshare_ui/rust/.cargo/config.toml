@@ -1,5 +1,7 @@
 [target.aarch64-linux-android]
-linker = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\aarch64-linux-android24-clang.cmd"
+linker = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\aarch64-linux-android-clang.cmd"
+ar = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\llvm-ar.exe"
+
 
 [target.armv7-linux-androideabi]
 linker = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\armv7a-linux-androideabi24-clang.cmd"
@@ -9,3 +11,8 @@ linker = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\t
 
 [target.x86_64-linux-android]
 linker = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\x86_64-linux-android24-clang.cmd"
+
+[env]
+CC_aarch64_linux_android = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\aarch64-linux-android-clang.cmd"
+CXX_aarch64_linux_android = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\aarch64-linux-android-clang++.cmd"
+AR_aarch64_linux_android = "C:\\Users\\bhabha\\AppData\\Local\\Android\\sdk\\ndk\\29.0.14206865\\toolchains\\llvm\\prebuilt\\windows-x86_64\\bin\\llvm-ar.exe"

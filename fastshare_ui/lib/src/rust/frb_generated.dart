@@ -66,7 +66,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1953773569;
+  int get rustContentHash => 941947514;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -89,6 +89,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiSimpleInitApp();
 
+  Future<void> crateApiSimpleOpenFileInExplorer({required String path});
+
   Future<void> crateApiSimpleRespondIncoming({
     required String fileId,
     required bool accept,
@@ -99,7 +101,10 @@ abstract class RustLibApi extends BaseApi {
     required String targetIp,
   });
 
-  Future<String> crateApiSimpleStartFastshare();
+  Future<String> crateApiSimpleStartFastshare({
+    required String downloadPath,
+    required String tempPath,
+  });
 
   Future<void> crateApiSimpleTriggerDiscoveryScan();
 }
@@ -275,6 +280,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "init_app", argNames: []);
 
   @override
+  Future<void> crateApiSimpleOpenFileInExplorer({required String path}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(path, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 7,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSimpleOpenFileInExplorerConstMeta,
+        argValues: [path],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSimpleOpenFileInExplorerConstMeta =>
+      const TaskConstMeta(
+        debugName: "open_file_in_explorer",
+        argNames: ["path"],
+      );
+
+  @override
   Future<void> crateApiSimpleRespondIncoming({
     required String fileId,
     required bool accept,
@@ -288,7 +324,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 7,
+            funcId: 8,
             port: port_,
           );
         },
@@ -323,7 +359,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 8,
+            funcId: 9,
             port: port_,
           );
         },
@@ -345,15 +381,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<String> crateApiSimpleStartFastshare() {
+  Future<String> crateApiSimpleStartFastshare({
+    required String downloadPath,
+    required String tempPath,
+  }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_String(downloadPath, serializer);
+          sse_encode_String(tempPath, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 9,
+            funcId: 10,
             port: port_,
           );
         },
@@ -362,14 +403,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: null,
         ),
         constMeta: kCrateApiSimpleStartFastshareConstMeta,
-        argValues: [],
+        argValues: [downloadPath, tempPath],
         apiImpl: this,
       ),
     );
   }
 
   TaskConstMeta get kCrateApiSimpleStartFastshareConstMeta =>
-      const TaskConstMeta(debugName: "start_fastshare", argNames: []);
+      const TaskConstMeta(
+        debugName: "start_fastshare",
+        argNames: ["downloadPath", "tempPath"],
+      );
 
   @override
   Future<void> crateApiSimpleTriggerDiscoveryScan() {
@@ -380,7 +424,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 10,
+            funcId: 11,
             port: port_,
           );
         },

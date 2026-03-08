@@ -52,13 +52,14 @@ pub struct AppState {
     pub transfer_history: Arc<std::sync::Mutex<Vec<TransferHistoryItem>>>,
 }
 
-#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct TransferHistoryItem {
     pub file_name: String,
     pub size: u64,
     pub status: String, // "Success", "Failed", "Declined"
     pub timestamp: String,
     pub is_incoming: bool,
+    pub saved_path: Option<String>,
 }
 
 /// Top-level application that ties all subsystems together.
@@ -110,6 +111,8 @@ impl App {
 
         let (shutdown_tx, _) = broadcast::channel(1);
 
+        let history = Self::load_history(&download_path);
+
         let state = Arc::new(AppState {
             device_id,
             device_name,
@@ -123,7 +126,7 @@ impl App {
             pending_incoming_display: Arc::new(std::sync::Mutex::new(None)),
             transfer_progress: Arc::new(std::sync::Mutex::new(None)),
             transfer_receiver,
-            transfer_history: Arc::new(std::sync::Mutex::new(Vec::new())),
+            transfer_history: Arc::new(std::sync::Mutex::new(history)),
         });
 
         Ok(Self {
@@ -132,6 +135,28 @@ impl App {
             discovery,
             shutdown_tx,
         })
+    }
+
+    fn get_history_path(base_path: &str) -> PathBuf {
+        PathBuf::from(base_path).join("history.json")
+    }
+
+    fn load_history(download_path: &str) -> Vec<TransferHistoryItem> {
+        let path = Self::get_history_path(download_path);
+        if let Ok(data) = std::fs::read_to_string(path) {
+            serde_json::from_str(&data).unwrap_or_default()
+        } else {
+            Vec::new()
+        }
+    }
+
+    pub fn save_history(state: &AppState) {
+        let path = Self::get_history_path(&state.download_path);
+        if let Ok(history) = state.transfer_history.lock() {
+            if let Ok(json) = serde_json::to_string_pretty(&*history) {
+                let _ = std::fs::write(path, json);
+            }
+        }
     }
 
     /// Returns the device ID of this node.
@@ -224,6 +249,23 @@ pub async fn run_send_loop(
             tracing::error!("File not found: {}", file_path.display());
             continue;
         }
+
+        if let Ok(mut guard) = state.transfer_progress.lock() {
+            *guard = Some(TransferProgress {
+                file_name: format!("Connecting to {}...", peer_addr.ip()),
+                file_id: String::new(),
+                total_bytes: 0,
+                bytes_sent: 0,
+                chunks_sent: 0,
+                total_chunks: 1,
+                current_file_index: 1,
+                total_files: 1,
+                throughput_bps: 0,
+                eta_seconds: 0.0,
+                complete: false,
+            });
+        }
+
         let mut last_err = None;
         for attempt in 1..=CONNECT_RETRIES {
             let connect_fut = quic_server.connect_and_handshake(peer_addr, state.clone());
@@ -249,8 +291,28 @@ pub async fn run_send_loop(
                         .await
                     {
                         tracing::error!("Send file failed: {}", e);
+                        let mut history = state.transfer_history.lock().unwrap();
+                        history.push(TransferHistoryItem {
+                            file_name: file_path.to_string_lossy().to_string(),
+                            size: 0,
+                            status: format!("Failed: {}", e),
+                            timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                            is_incoming: false,
+                            saved_path: Some(file_path.to_string_lossy().to_string()),
+                        });
+                        App::save_history(&state);
                     } else {
                         info!("✅ File sent successfully: {}", file_path.display());
+                        let mut history = state.transfer_history.lock().unwrap();
+                        history.push(TransferHistoryItem {
+                            file_name: file_path.to_string_lossy().to_string(),
+                            size: 0,
+                            status: "Success".into(),
+                            timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+                            is_incoming: false,
+                            saved_path: Some(file_path.to_string_lossy().to_string()),
+                        });
+                        App::save_history(&state);
                     }
                     if let Ok(mut guard) = state.transfer_progress.lock() {
                         *guard = None;
@@ -295,6 +357,14 @@ pub async fn run_send_loop(
                 CONNECT_RETRIES,
                 e
             );
+            crate::ui::gui_bridge::set_backend_status(format!(
+                "Failed to connect to {}: {}",
+                peer_addr.ip(),
+                e
+            ));
+            if let Ok(mut guard) = state.transfer_progress.lock() {
+                *guard = None;
+            }
         }
     }
 }

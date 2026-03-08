@@ -4751,6 +4751,7 @@ dependencies = [
  "flutter_rust_bridge",
  "lazy_static",
  "local-ip-address",
+ "opener",
  "serde",
  "serde_json",
  "tokio",

@@ -49,23 +49,7 @@ pub fn init_app() {
 }
 
 /// Start the background FastShare server and return some details
-pub fn start_fastshare() -> String {
-    let download_path = dirs::download_dir()
-        .or_else(dirs::document_dir)
-        .or_else(dirs::home_dir)
-        .map(|p| p.join("FastShare").to_string_lossy().into_owned())
-        .unwrap_or_else(|| ".".to_string());
-
-    let temp_path = dirs::data_local_dir()
-        .or_else(dirs::home_dir)
-        .map(|p| {
-            p.join("FastShare")
-                .join("temp")
-                .to_string_lossy()
-                .into_owned()
-        })
-        .unwrap_or_else(|| std::env::temp_dir().to_string_lossy().into_owned());
-
+pub fn start_fastshare(download_path: String, temp_path: String) -> String {
     let result = RUNTIME.block_on(async {
         match App::new(download_path, temp_path).await {
             Ok(app) => {
@@ -136,19 +120,22 @@ async fn do_send_files(
         Some(s) => s,
         None => return "Engine not ready".into(),
     };
-    let connection = match server
-        .connect_and_handshake(target_addr, state.clone())
-        .await
-    {
-        Ok(c) => {
-            tracing::info!("📤 [FastShare] Handshake successful with {}", target_addr);
-            c
-        }
-        Err(e) => {
-            tracing::error!("❌ [FastShare] Connection failed to {}: {}", target_addr, e);
-            return format!("Failed to connect and handshake: {}", e);
-        }
-    };
+    let connection_future = server.connect_and_handshake(target_addr, state.clone());
+    let connection =
+        match tokio::time::timeout(std::time::Duration::from_secs(5), connection_future).await {
+            Ok(Ok(c)) => {
+                tracing::info!("📤 [FastShare] Handshake successful with {}", target_addr);
+                c
+            }
+            Ok(Err(e)) => {
+                tracing::error!("❌ [FastShare] Connection failed to {}: {}", target_addr, e);
+                return format!("Failed to connect and handshake: {}", e);
+            }
+            Err(_) => {
+                tracing::error!("❌ [FastShare] Connection timed out to {}", target_addr);
+                return format!("Connection timed out.");
+            }
+        };
     let sender = TransferSender::new();
     let mut success_count = 0;
     let total = file_paths.len() as u32;
@@ -184,7 +171,9 @@ async fn do_send_files(
                     status: "Success".into(),
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     is_incoming: false,
+                    saved_path: Some(path.clone()),
                 });
+                fastshare::app::App::save_history(&state);
             }
             Err(e) => {
                 let err_msg = format!(
@@ -199,7 +188,9 @@ async fn do_send_files(
                     status: format!("Failed: {}", e),
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     is_incoming: false,
+                    saved_path: Some(path.clone()),
                 });
+                fastshare::app::App::save_history(&state);
                 return err_msg;
             }
         }
@@ -208,6 +199,14 @@ async fn do_send_files(
         "Success! Sent {}/{} files to {}",
         success_count, total, target_addr
     )
+}
+
+/// Open a file or directory in the system explorer
+pub fn open_file_in_explorer(path: String) {
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = opener::open(std::path::Path::new(&path));
+    }
 }
 
 /// Get transfer history as JSON

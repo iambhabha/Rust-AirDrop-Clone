@@ -71,6 +71,35 @@ class MyApp extends StatelessWidget {
   }
 }
 
+class HistoryItem {
+  final String fileName;
+  final int size;
+  final String status;
+  final String timestamp;
+  final bool isIncoming;
+  final String? savedPath;
+
+  HistoryItem({
+    required this.fileName,
+    required this.size,
+    required this.status,
+    required this.timestamp,
+    required this.isIncoming,
+    this.savedPath,
+  });
+
+  factory HistoryItem.fromJson(Map<String, dynamic> json) {
+    return HistoryItem(
+      fileName: json['file_name'] ?? '',
+      size: json['size'] ?? 0,
+      status: json['status'] ?? '',
+      timestamp: json['timestamp'] ?? '',
+      isIncoming: json['is_incoming'] ?? false,
+      savedPath: json['saved_path'],
+    );
+  }
+}
+
 class FastShareHome extends StatefulWidget {
   const FastShareHome({super.key});
 
@@ -93,6 +122,8 @@ class _FastShareHomeState extends State<FastShareHome>
   int _sendingFileCount = 0;
   List<dynamic> activeIncoming = [];
   Timer? _incomingProgressTimer;
+  Map<String, dynamic>? _outgoingProgress;
+  Timer? _outgoingProgressTimer;
 
   @override
   void initState() {
@@ -118,6 +149,8 @@ class _FastShareHomeState extends State<FastShareHome>
     WidgetsBinding.instance.removeObserver(this);
     _discoveryTimer?.cancel();
     _incomingPollTimer?.cancel();
+    _incomingProgressTimer?.cancel();
+    _outgoingProgressTimer?.cancel();
     _ipController.dispose();
     super.dispose();
   }
@@ -127,11 +160,33 @@ class _FastShareHomeState extends State<FastShareHome>
       status = "Starting Backend...";
       isEngineRunning = true;
     });
-    // Call Rust function
-    final result = await startFastshare();
-    setState(() {
-      status = result;
-    });
+
+    try {
+      final downloadDir =
+          await getExternalStorageDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final downloadPath = Directory('${downloadDir.path}/FastShare').path;
+      final tempDir = await getTemporaryDirectory();
+      final tempPath = Directory('${tempDir.path}/FastShare/temp').path;
+
+      // Ensure directories exist on the Flutter side for better reliability on Android
+      await Directory(downloadPath).create(recursive: true);
+      await Directory(tempPath).create(recursive: true);
+
+      // Call Rust function
+      final result = await startFastshare(
+        downloadPath: downloadPath,
+        tempPath: tempPath,
+      );
+      setState(() {
+        status = result;
+      });
+    } catch (e) {
+      debugPrint("Error starting backend: $e");
+      setState(() {
+        status = "Error: $e";
+      });
+    }
 
     // Start background auto-refresh for devices list
     _discoveryTimer?.cancel();
@@ -213,118 +268,154 @@ class _FastShareHomeState extends State<FastShareHome>
         return;
       }
 
-      // Show a Material Banner as a fallback/redundancy in case dialog fails or is hidden
-      ScaffoldMessenger.of(navContext).showMaterialBanner(
-        MaterialBanner(
-          padding: const EdgeInsets.all(20),
-          content: Text(
-            'Incoming transfer from $fromAddr: $fileName ${totalFiles > 1 ? "(+$totalFiles files)" : ""}',
-          ),
-          leading: const Icon(Icons.file_download, color: Colors.teal),
-          backgroundColor: const Color(0xFF1E293B),
-          actions: [
-            TextButton(
-              onPressed: () async {
-                ScaffoldMessenger.of(navContext).hideCurrentMaterialBanner();
-                await respondIncoming(fileId: fileId, accept: true);
-              },
-              child: const Text(
-                'ACCEPT',
-                style: TextStyle(
-                  color: Colors.teal,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            TextButton(
-              onPressed: () async {
-                ScaffoldMessenger.of(navContext).hideCurrentMaterialBanner();
-                await respondIncoming(fileId: fileId, accept: false);
-              },
-              child: const Text(
-                'DECLINE',
-                style: TextStyle(color: Colors.redAccent),
-              ),
-            ),
-          ],
-        ),
-      );
-
-      // Also show the standard dialog for better UX
+      // Show a premium glassmorphic dialog
+      if (!mounted) return;
       showDialog<void>(
         context: navContext,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
-          backgroundColor: const Color(0xFF1E293B),
-          title: Row(
+          backgroundColor: const Color(0xFF0F172A),
+          elevation: 24,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: Column(
             children: [
-              const Icon(Icons.download_for_offline, color: Colors.teal),
-              const SizedBox(width: 12),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.teal.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.file_download_outlined,
+                  color: Colors.tealAccent,
+                  size: 48,
+                ),
+              ),
+              const SizedBox(height: 16),
               Text(
                 totalFiles > 1 ? 'Receive $totalFiles Files?' : 'Receive File?',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 22,
+                ),
               ),
             ],
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Source Device:',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
+                'Source Device',
+                style: TextStyle(color: Colors.white54, fontSize: 13),
               ),
               Text(
                 fromAddr,
                 style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
                   fontSize: 16,
                 ),
               ),
-              const SizedBox(height: 16),
-              const Text(
-                'Files:',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      fileName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (totalFiles > 1) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '+ ${totalFiles - 1} more files',
+                        style: const TextStyle(
+                          color: Colors.tealAccent,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
-              Text(
-                fileName,
-                style: const TextStyle(fontStyle: FontStyle.italic),
-              ),
-              if (totalFiles > 1)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Text(
-                    '+ ${totalFiles - 1} more files',
-                    style: const TextStyle(
-                      color: Colors.tealAccent,
-                      fontSize: 12,
+            ],
+          ),
+          actionsPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 16,
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () async {
+                      await respondIncoming(fileId: fileId, accept: false);
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                    },
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      side: const BorderSide(color: Colors.redAccent, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'DECLINE',
+                      style: TextStyle(
+                        color: Colors.redAccent,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-            ],
-          ),
-          actions: [
-            OutlinedButton(
-              onPressed: () async {
-                ScaffoldMessenger.of(navContext).hideCurrentMaterialBanner();
-                await respondIncoming(fileId: fileId, accept: false);
-                if (ctx.mounted) Navigator.of(ctx).pop();
-              },
-              child: const Text('Decline'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                ScaffoldMessenger.of(navContext).hideCurrentMaterialBanner();
-                await respondIncoming(fileId: fileId, accept: true);
-                if (ctx.mounted) Navigator.of(ctx).pop();
-              },
-              style: FilledButton.styleFrom(backgroundColor: Colors.teal),
-              child: const Text('Accept and Download'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      await respondIncoming(fileId: fileId, accept: true);
+                      if (ctx.mounted) Navigator.of(ctx).pop();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      backgroundColor: Colors.tealAccent,
+                      foregroundColor: Colors.black87,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: const Text(
+                      'ACCEPT',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
       ).then((_) {
         _showingIncomingDialog = false;
-        ScaffoldMessenger.of(navContext).hideCurrentMaterialBanner();
       });
     } catch (e) {
       debugPrint('Incoming check error: $e');
@@ -336,13 +427,39 @@ class _FastShareHomeState extends State<FastShareHome>
     try {
       final progressJson = await getIncomingProgress();
       final List<dynamic> progress = jsonDecode(progressJson);
+
       if (mounted) {
+        // If we had active transfers and now they are gone
+        if (activeIncoming.isNotEmpty && progress.isEmpty) {
+          _showSnackBar("Transfer completed!", action: "HISTORY");
+        }
         setState(() {
           activeIncoming = progress;
         });
       }
     } catch (e) {
       debugPrint("Error updating incoming progress: $e");
+    }
+  }
+
+  Future<void> _updateOutgoingProgress() async {
+    if (!isEngineRunning || !_isSending) return;
+    try {
+      final progressJson = await getOutgoingProgress();
+      if (progressJson == "null") {
+        setState(() {
+          _outgoingProgress = null;
+        });
+        return;
+      }
+      final map = jsonDecode(progressJson) as Map<String, dynamic>;
+      if (mounted) {
+        setState(() {
+          _outgoingProgress = map;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error updating outgoing progress: $e");
     }
   }
 
@@ -438,7 +555,15 @@ class _FastShareHomeState extends State<FastShareHome>
         status = "Sending ${paths.length} file(s) to ${_ipController.text}...";
         _isSending = true;
         _sendingFileCount = paths.length;
+        _outgoingProgress = null;
       });
+
+      // Start outgoing progress poll
+      _outgoingProgressTimer?.cancel();
+      _outgoingProgressTimer = Timer.periodic(
+        const Duration(milliseconds: 300),
+        (_) => _updateOutgoingProgress(),
+      );
 
       // Send the files over QUIC
       final response = await sendFilesToIp(
@@ -446,13 +571,59 @@ class _FastShareHomeState extends State<FastShareHome>
         targetIp: _ipController.text,
       );
 
+      _outgoingProgressTimer?.cancel();
+
       setState(() {
         status = response;
         _isSending = false;
+        _outgoingProgress = null;
       });
 
-      _showSnackBar(response);
+      if (response.toLowerCase().contains("success")) {
+        _loadHistory();
+      }
+
+      _showSnackBar(
+        response,
+        action: response.toLowerCase().contains("success") ? "HISTORY" : null,
+      );
     }
+  }
+
+  void _loadHistory() {
+    // This function is called when a transfer is successful.
+    // It can be implemented to refresh the history list or perform other actions.
+    // For now, it's a placeholder.
+    debugPrint("Loading history...");
+  }
+
+  void _showSnackBar(String m, {String? action, bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(m, style: const TextStyle(fontWeight: FontWeight.w500)),
+        backgroundColor: isError
+            ? Colors.redAccent
+            : (action == "HISTORY"
+                  ? Theme.of(context).colorScheme.primary
+                  : null), // Use primary color for history action, default otherwise
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(16),
+        action: action == "HISTORY"
+            ? SnackBarAction(
+                label: "VIEW",
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const TransferHistoryScreen(),
+                    ),
+                  );
+                },
+              )
+            : null,
+      ),
+    );
   }
 
   void _scanQr() async {
@@ -486,30 +657,31 @@ class _FastShareHomeState extends State<FastShareHome>
     }
   }
 
-  void _showSnackBar(String message, {bool isError = false}) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-        backgroundColor: isError
-            ? Colors.redAccent
-            : Theme.of(context).colorScheme.primary,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('FastShare'),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.history),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const TransferHistoryScreen(),
+                ),
+              );
+            },
+            tooltip: 'Transfer History',
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -568,16 +740,32 @@ class _FastShareHomeState extends State<FastShareHome>
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
-                                'Sending $_sendingFileCount file(s)...',
+                                _outgoingProgress != null
+                                    ? 'Sending: ${_outgoingProgress!['file_name']}'
+                                    : 'Sending $_sendingFileCount file(s)...',
                                 style: textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.w600,
                                 ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
+                            if (_outgoingProgress != null)
+                              Text(
+                                '${((_outgoingProgress!['chunks_sent'] / _outgoingProgress!['total_chunks']) * 100).toStringAsFixed(1)}%',
+                                style: TextStyle(
+                                  color: colorScheme.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                           ],
                         ),
                         const SizedBox(height: 12),
-                        const LinearProgressIndicator(),
+                        LinearProgressIndicator(
+                          value: _outgoingProgress != null
+                              ? (_outgoingProgress!['chunks_sent'] /
+                                    _outgoingProgress!['total_chunks'])
+                              : null,
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           status,
@@ -588,10 +776,69 @@ class _FastShareHomeState extends State<FastShareHome>
                             ),
                           ),
                         ),
+                        if (_outgoingProgress != null &&
+                            _outgoingProgress!['throughput_bps'] > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Text(
+                              'Speed: ${(_outgoingProgress!['throughput_bps'] / (1024 * 1024)).toStringAsFixed(2)} MB/s',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white54,
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 24),
+                ],
+
+                // Active Incoming Progress
+                if (activeIncoming.isNotEmpty) ...[
+                  Text('Active Incoming', style: textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  ...activeIncoming.map((p) {
+                    final double progressValue = p['progress'] ?? 0.0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12.0),
+                      child: _buildCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.download, color: Colors.teal),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    p['file_name'] ?? 'Unknown',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                Text(
+                                  '${(progressValue * 100).toStringAsFixed(1)}%',
+                                  style: const TextStyle(
+                                    color: Colors.teal,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            LinearProgressIndicator(
+                              value: progressValue,
+                              color: Colors.teal,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  const SizedBox(height: 12),
                 ],
 
                 // Engine Status Card
@@ -1058,6 +1305,192 @@ class _QrScannerScreenState extends State<_QrScannerScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class TransferHistoryScreen extends StatefulWidget {
+  const TransferHistoryScreen({super.key});
+
+  @override
+  State<TransferHistoryScreen> createState() => _TransferHistoryScreenState();
+}
+
+class _TransferHistoryScreenState extends State<TransferHistoryScreen>
+    with SingleTickerProviderStateMixin {
+  List<HistoryItem> history = [];
+  bool isLoading = true;
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _loadHistory();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadHistory() async {
+    setState(() => isLoading = true);
+    try {
+      final jsonStr = await getTransferHistory();
+      final List<dynamic> list = jsonDecode(jsonStr);
+      setState(() {
+        history = list
+            .map((e) => HistoryItem.fromJson(e))
+            .toList()
+            .reversed
+            .toList();
+        isLoading = false;
+      });
+    } catch (e) {
+      debugPrint("Error loading history: $e");
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _clearHistory() async {
+    // We would need a backend function for this, but for now we can just show a placeholder
+    // or if the user wants purely local UI clear:
+    setState(() {
+      history = [];
+    });
+    _showSnackBar("History cleared (UI only)");
+  }
+
+  void _showSnackBar(String m) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Transfer History'),
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(text: 'All'),
+            Tab(text: 'Received'),
+            Tab(text: 'Sent'),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep_outlined),
+            onPressed: _clearHistory,
+            tooltip: 'Clear History',
+          ),
+          IconButton(icon: const Icon(Icons.refresh), onPressed: _loadHistory),
+        ],
+      ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : TabBarView(
+              controller: _tabController,
+              children: [
+                _buildHistoryList(history),
+                _buildHistoryList(history.where((i) => i.isIncoming).toList()),
+                _buildHistoryList(history.where((i) => !i.isIncoming).toList()),
+              ],
+            ),
+    );
+  }
+
+  Widget _buildHistoryList(List<HistoryItem> items) {
+    if (items.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.history_outlined, size: 64, color: Colors.white24),
+            const SizedBox(height: 16),
+            const Text(
+              'No transfers found',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final isSuccess = item.status.toLowerCase() == 'success';
+        return Card(
+          color: const Color(0xFF1E293B),
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: item.isIncoming
+                  ? Colors.teal.withOpacity(0.2)
+                  : Colors.blue.withOpacity(0.2),
+              child: Icon(
+                item.isIncoming ? Icons.download_rounded : Icons.upload_rounded,
+                color: item.isIncoming ? Colors.tealAccent : Colors.blueAccent,
+              ),
+            ),
+            title: Text(
+              item.fileName.split(RegExp(r'[/\\]')).last,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${item.status} • ${item.timestamp}',
+                  style: TextStyle(
+                    color: isSuccess ? Colors.greenAccent : Colors.redAccent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (item.size > 0)
+                  Text(
+                    '${(item.size / (1024 * 1024)).toStringAsFixed(2)} MB',
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+              ],
+            ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (item.savedPath != null)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.folder_open,
+                      color: Colors.tealAccent,
+                    ),
+                    onPressed: () {
+                      openFileInExplorer(path: item.savedPath!);
+                    },
+                    tooltip: 'Open location',
+                  ),
+                if (isSuccess && item.savedPath != null && !Platform.isAndroid)
+                  IconButton(
+                    icon: const Icon(Icons.launch, color: Colors.blueAccent),
+                    onPressed: () {
+                      openFileInExplorer(path: item.savedPath!);
+                    },
+                    tooltip: 'Open file',
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

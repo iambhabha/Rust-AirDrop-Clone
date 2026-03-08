@@ -11,8 +11,13 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `deref`, `deref`, `deref`, `deref`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`
 
 /// Start the background FastShare server and return some details
-Future<String> startFastshare() =>
-    RustLib.instance.api.crateApiSimpleStartFastshare();
+Future<String> startFastshare({
+  required String downloadPath,
+  required String tempPath,
+}) => RustLib.instance.api.crateApiSimpleStartFastshare(
+  downloadPath: downloadPath,
+  tempPath: tempPath,
+);
 
 /// Send multiple files to a target IP
 Future<String> sendFilesToIp({
@@ -22,6 +27,10 @@ Future<String> sendFilesToIp({
   filePaths: filePaths,
   targetIp: targetIp,
 );
+
+/// Open a file or directory in the system explorer
+Future<void> openFileInExplorer({required String path}) =>
+    RustLib.instance.api.crateApiSimpleOpenFileInExplorer(path: path);
 
 /// Get transfer history as JSON
 Future<String> getTransferHistory() =>

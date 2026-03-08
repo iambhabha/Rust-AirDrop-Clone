@@ -23,6 +23,7 @@ pub struct IncomingProgress {
 
 /// Shared bridge set by the backend when ready, read by the GUI.
 static BRIDGE: OnceLock<GuiBridge> = OnceLock::new();
+static BACKEND_STATUS: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
 
 /// Handle to backend state and send channel. Safe to read from the GUI thread.
 pub struct GuiBridge {
@@ -31,8 +32,27 @@ pub struct GuiBridge {
 }
 
 /// Set the bridge (called once from the backend thread when App is ready).
-pub fn set_bridge(state: std::sync::Arc<AppState>, send_tx: tokio::sync::mpsc::Sender<SendFileRequest>) {
+pub fn set_bridge(
+    state: std::sync::Arc<AppState>,
+    send_tx: tokio::sync::mpsc::Sender<SendFileRequest>,
+) {
     let _ = BRIDGE.set(GuiBridge { state, send_tx });
+}
+
+/// Set the global backend status message.
+pub fn set_backend_status(msg: String) {
+    if let Ok(mut guard) = BACKEND_STATUS.lock() {
+        *guard = Some(msg);
+    }
+}
+
+/// Take the recent backend status message, clearing it.
+pub fn take_backend_status() -> Option<String> {
+    if let Ok(mut guard) = BACKEND_STATUS.lock() {
+        guard.take()
+    } else {
+        None
+    }
 }
 
 /// Get the bridge if the backend is ready. Returns None until the backend has started.
@@ -42,9 +62,13 @@ pub fn get_bridge() -> Option<&'static GuiBridge> {
 
 /// Get current outgoing transfer progress for UI (file name, size, bytes sent, progress).
 pub fn get_transfer_progress() -> Option<crate::transfer::sender::TransferProgress> {
-    BRIDGE
-        .get()
-        .and_then(|b| b.state.transfer_progress.lock().ok().and_then(|g| g.clone()))
+    BRIDGE.get().and_then(|b| {
+        b.state
+            .transfer_progress
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+    })
 }
 
 /// Get transfer history (sent + received files).
@@ -90,9 +114,14 @@ pub fn get_download_path() -> String {
         .unwrap_or_default()
 }
 
-/// Open a file with the system default application.
+#[cfg(not(target_os = "android"))]
 pub fn open_file(path: &std::path::Path) {
     let _ = opener::open(path);
+}
+
+#[cfg(target_os = "android")]
+pub fn open_file(_path: &std::path::Path) {
+    // Cannot open files out-of-band directly on Android easily from Rust alone.
 }
 
 /// Respond to incoming transfer (Accept or Decline). Call from GUI when user clicks.

@@ -494,10 +494,10 @@ impl DiscoveryService {
         let mut device = packet.device;
         device.last_seen = Some(Instant::now());
 
-        // Use the source IP if the announced IP is loopback
-        if device.ip_address.is_loopback() {
-            device.ip_address = source.ip();
-        }
+        // Always prefer the actual source IP over the announced IP.
+        // This prevents connection failures when a device has multiple network
+        // interfaces and advertises an unreachable one (e.g. 169.254.x.x link-local).
+        device.ip_address = source.ip();
 
         let is_new = !self.discovered_devices.contains_key(&device_id);
 

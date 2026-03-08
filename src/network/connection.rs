@@ -218,7 +218,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
 
     loop {
         match connection.accept_bi().await {
-            Ok((send_stream, mut recv_stream)) => {
+            Ok((mut send_stream, mut recv_stream)) => {
                 let receiver = receiver.clone();
                 let app_state = state.clone();
                 let session_decision = session_decision.clone();
@@ -263,6 +263,10 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                             return;
                         }
 
+                        // Send ACK for file plan so the sender can safely start sending chunks
+                        let _ = send_stream.write_all(&[0x06]).await;
+                        let _ = send_stream.finish();
+
                         // Check if session is already decided or being decided.
                         // Only the FIRST file in the batch sets pending_incoming_display and waits for user.
                         // Other files in the same batch just wait for the decision.
@@ -293,7 +297,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                 continue;
                             }
 
-                            let mut decision_guard = session_decision.write().await;
+                            let decision_guard = session_decision.write().await;
                             if decision_guard.is_some() {
                                 break;
                             } // Session decided while we waited
@@ -357,7 +361,9 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                     .format("%Y-%m-%d %H:%M:%S")
                                     .to_string(),
                                 is_incoming: true,
+                                saved_path: None,
                             });
+                            crate::app::App::save_history(&app_state);
                             return;
                         }
 
@@ -384,7 +390,9 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                             .format("%Y-%m-%d %H:%M:%S")
                                             .to_string(),
                                         is_incoming: true,
+                                        saved_path: Some(out_path.to_string_lossy().to_string()),
                                     });
+                                    crate::app::App::save_history(&app_state_inner);
                                 } else {
                                     info!("File saved to {}", out_path.display());
                                     // Add to history as success
@@ -398,7 +406,9 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                             .format("%Y-%m-%d %H:%M:%S")
                                             .to_string(),
                                         is_incoming: true,
+                                        saved_path: Some(out_path.to_string_lossy().to_string()),
                                     });
+                                    crate::app::App::save_history(&app_state_inner);
                                 }
                             }
                         });

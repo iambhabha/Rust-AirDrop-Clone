@@ -1,0 +1,500 @@
+﻿9(StateTransitionController.ja
+va:190)
+[        ] 	at org.gradle.inte
+rnal.work.DefaultSynchronizer.
+withLock(DefaultSynchronizer.j
+ava:36)
+[        ] 	at org.gradle.inte
+rnal.model.StateTransitionCont
+roller.maybeTransition(StateTr
+ansitionController.java:186)
+[        ] 	at org.gradle.inte
+rnal.build.DefaultBuildLifecyc
+leController.prepareToSchedule
+Tasks(DefaultBuildLifecycleCon
+troller.java:173)
+[        ] 	at org.gradle.inte
+rnal.buildtree.DefaultBuildTre
+eWorkPreparer.scheduleRequeste
+dTasks(DefaultBuildTreeWorkPre
+parer.java:36)
+[        ] 	at org.gradle.inte
+rnal.cc.impl.VintageBuildTreeW
+orkController$scheduleAndRunRe
+questedTasks$1.apply(VintageBu
+ildTreeWorkController.kt:36)
+[        ] 	at org.gradle.inte
+rnal.cc.impl.VintageBuildTreeW
+orkController$scheduleAndRunRe
+questedTasks$1.apply(VintageBu
+ildTreeWorkController.kt:35)
+[        ] 	at org.gradle.comp
+osite.internal.DefaultIncluded
+BuildTaskGraph.withNewWorkGrap
+h(DefaultIncludedBuildTaskGrap
+h.java:112)
+[        ] 	at org.gradle.inte
+rnal.cc.impl.VintageBuildTreeW
+orkController.scheduleAndRunRe
+questedTasks(VintageBuildTreeW
+orkController.kt:35)
+[        ] 	at org.gradle.inte
+rnal.buildtree.DefaultBuildTre
+eLifecycleController.lambda$sc
+heduleAndRunTasks$1(DefaultBui
+ldTreeLifecycleController.java
+:77)
+[        ] 	at org.gradle.inte
+rnal.buildtree.DefaultBuildTre
+eLifecycleController.lambda$ru
+nBuild$4(DefaultBuildTreeLifec
+ycleController.java:120)
+[        ] 	at org.gradle.inte
+rnal.model.StateTransitionCont
+roller.lambda$transition$6(Sta
+teTransitionController.java:16
+9)
+[        ] 	at org.gradle.inte
+rnal.model.StateTransitionCont
+roller.doTransition(StateTrans
+itionController.java:266)
+[        ] 	at org.gradle.inte
+rnal.model.StateTransitionCont
+roller.lambda$transition$7(Sta
+teTransitionController.java:16
+9)
+[        ] 	at org.gradle.inte
+rnal.work.DefaultSynchronizer.
+withLock(DefaultSynchronizer.j
+ava:46)
+[        ] 	at org.gradle.inte
+rnal.model.StateTransitionCont
+roller.transition(StateTransit
+ionController.java:169)
+[        ] 	at org.gradle.inte
+rnal.buildtree.DefaultBuildTre
+eLifecycleController.runBuild(
+DefaultBuildTreeLifecycleContr
+oller.java:117)
+[        ] 	at org.gradle.inte
+rnal.buildtree.DefaultBuildTre
+eLifecycleController.scheduleA
+ndRunTasks(DefaultBuildTreeLif
+ecycleController.java:77)
+[        ] 	at org.gradle.inte
+rnal.buildtree.DefaultBuildTre
+eLifecycleController.scheduleA
+ndRunTasks(DefaultBuildTreeLif
+ecycleController.java:72)
+[        ] 	at org.gradle.tool
+ing.internal.provider.ExecuteB
+uildActionRunner.run(ExecuteBu
+ildActionRunner.java:31)
+[        ] 	at org.gradle.laun
+cher.exec.ChainingBuildActionR
+unner.run(ChainingBuildActionR
+unner.java:35)
+[        ] 	at org.gradle.inte
+rnal.buildtree.ProblemReportin
+gBuildActionRunner.run(Problem
+ReportingBuildActionRunner.jav
+a:49)
+[        ] 	at org.gradle.laun
+cher.exec.BuildOutcomeReportin
+gBuildActionRunner.run(BuildOu
+tcomeReportingBuildActionRunne
+r.java:71)
+[        ] 	at org.gradle.tool
+ing.internal.provider.FileSyst
+emWatchingBuildActionRunner.ru
+n(FileSystemWatchingBuildActio
+nRunner.java:135)
+[        ] 	at org.gradle.laun
+cher.exec.BuildCompletionNotif
+yingBuildActionRunner.run(Buil
+dCompletionNotifyingBuildActio
+nRunner.java:41)
+[        ] 	at org.gradle.laun
+cher.exec.RootBuildLifecycleBu
+ildActionExecutor.lambda$execu
+te$0(RootBuildLifecycleBuildAc
+tionExecutor.java:54)
+[        ] 	at org.gradle.comp
+osite.internal.DefaultRootBuil
+dState.run(DefaultRootBuildSta
+te.java:130)
+[        ] 	at org.gradle.laun
+cher.exec.RootBuildLifecycleBu
+ildActionExecutor.execute(Root
+BuildLifecycleBuildActionExecu
+tor.java:54)
+[        ] 	at org.gradle.inte
+rnal.buildtree.InitDeprecation
+LoggingActionExecutor.execute(
+InitDeprecationLoggingActionEx
+ecutor.java:62)
+[        ] 	at org.gradle.inte
+rnal.buildtree.InitProblems.ex
+ecute(InitProblems.java:36)
+[        ] 	at org.gradle.inte
+rnal.buildtree.DefaultBuildTre
+eContext.execute(DefaultBuildT
+reeContext.java:40)
+[        ] 	at org.gradle.laun
+cher.exec.BuildTreeLifecycleBu
+ildActionExecutor.lambda$execu
+te$0(BuildTreeLifecycleBuildAc
+tionExecutor.java:71)
+[        ] 	at org.gradle.inte
+rnal.buildtree.BuildTreeState.
+run(BuildTreeState.java:60)
+[        ] 	at org.gradle.laun
+cher.exec.BuildTreeLifecycleBu
+ildActionExecutor.execute(Buil
+dTreeLifecycleBuildActionExecu
+tor.java:71)
+[        ] 	at org.gradle.laun
+cher.exec.RunAsBuildOperationB
+uildActionExecutor$2.call(RunA
+sBuildOperationBuildActionExec
+utor.java:67)
+[        ] 	at org.gradle.laun
+cher.exec.RunAsBuildOperationB
+uildActionExecutor$2.call(RunA
+sBuildOperationBuildActionExec
+utor.java:63)
+[        ] 	at org.gradle.inte
+rnal.operations.DefaultBuildOp
+erationRunner$CallableBuildOpe
+rationWorker.execute(DefaultBu
+ildOperationRunner.java:210)
+[        ] 	at org.gradle.inte
+rnal.operations.DefaultBuildOp
+erationRunner$CallableBuildOpe
+rationWorker.execute(DefaultBu
+ildOperationRunner.java:205)
+[        ] 	at org.gradle.inte
+rnal.operations.DefaultBuildOp
+erationRunner$2.execute(Defaul
+tBuildOperationRunner.java:67)
+[        ] 	at org.gradle.inte
+rnal.operations.DefaultBuildOp
+erationRunner$2.execute(Defaul
+tBuildOperationRunner.java:60)
+[        ] 	at org.gradle.inte
+rnal.operations.DefaultBuildOp
+erationRunner.execute(DefaultB
+uildOperationRunner.java:167)
+[        ] 	at org.gradle.inte
+rnal.operations.DefaultBuildOp
+erationRunner.execute(DefaultB
+uildOperationRunner.java:60)
+[        ] 	at org.gradle.inte
+rnal.operations.DefaultBuildOp
+erationRunner.call(DefaultBuil
+dOperationRunner.java:54)
+[        ] 	at org.gradle.laun
+cher.exec.RunAsBuildOperationB
+uildActionExecutor.execute(Run
+AsBuildOperationBuildActionExe
+cutor.java:63)
+[        ] 	at org.gradle.laun
+cher.exec.RunAsWorkerThreadBui
+ldActionExecutor.lambda$execut
+e$0(RunAsWorkerThreadBuildActi
+onExecutor.java:36)
+[        ] 	at org.gradle.inte
+rnal.work.DefaultWorkerLeaseSe
+rvice.withLocks(DefaultWorkerL
+easeService.java:263)
+[        ] 	at org.gradle.inte
+rnal.work.DefaultWorkerLeaseSe
+rvice.runAsWorkerThread(Defaul
+tWorkerLeaseService.java:127)
+[        ] 	at org.gradle.laun
+cher.exec.RunAsWorkerThreadBui
+ldActionExecutor.execute(RunAs
+WorkerThreadBuildActionExecuto
+r.java:36)
+[        ] 	at org.gradle.tool
+ing.internal.provider.continuo
+us.ContinuousBuildActionExecut
+or.execute(ContinuousBuildActi
+onExecutor.java:110)
+[        ] 	at org.gradle.tool
+ing.internal.provider.Subscrib
+ableBuildActionExecutor.execut
+e(SubscribableBuildActionExecu
+tor.java:64)
+[        ] 	at org.gradle.inte
+rnal.session.DefaultBuildSessi
+onContext.execute(DefaultBuild
+SessionContext.java:46)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.Bu
+ildSessionLifecycleBuildAction
+Executor$ActionImpl.apply(Buil
+dSessionLifecycleBuildActionEx
+ecutor.java:92)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.Bu
+ildSessionLifecycleBuildAction
+Executor$ActionImpl.apply(Buil
+dSessionLifecycleBuildActionEx
+ecutor.java:80)
+[        ] 	at org.gradle.inte
+rnal.session.BuildSessionState
+.run(BuildSessionState.java:73
+)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.Bu
+ildSessionLifecycleBuildAction
+Executor.execute(BuildSessionL
+ifecycleBuildActionExecutor.ja
+va:62)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.Bu
+ildSessionLifecycleBuildAction
+Executor.execute(BuildSessionL
+ifecycleBuildActionExecutor.ja
+va:41)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.St
+artParamsValidatingActionExecu
+tor.execute(StartParamsValidat
+ingActionExecutor.java:64)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.St
+artParamsValidatingActionExecu
+tor.execute(StartParamsValidat
+ingActionExecutor.java:32)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.Se
+ssionFailureReportingActionExe
+cutor.execute(SessionFailureRe
+portingActionExecutor.java:51)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.Se
+ssionFailureReportingActionExe
+cutor.execute(SessionFailureRe
+portingActionExecutor.java:39)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.Se
+tupLoggingActionExecutor.execu
+te(SetupLoggingActionExecutor.
+java:47)
+[        ] 	at org.gradle.inte
+rnal.buildprocess.execution.Se
+tupLoggingActionExecutor.execu
+te(SetupLoggingActionExecutor.
+java:31)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.Execut
+eBuild.doBuild(ExecuteBuild.ja
+va:70)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.BuildC
+ommandOnly.execute(BuildComman
+dOnly.java:37)
+[        ] 	at org.gradle.laun
+cher.daemon.server.api.DaemonC
+ommandExecution.proceed(Daemon
+CommandExecution.java:104)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.WatchF
+orDisconnection.execute(WatchF
+orDisconnection.java:39)
+[        ] 	at org.gradle.laun
+cher.daemon.server.api.DaemonC
+ommandExecution.proceed(Daemon
+CommandExecution.java:104)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.ResetD
+eprecationLogger.execute(Reset
+DeprecationLogger.java:29)
+[        ] 	at org.gradle.laun
+cher.daemon.server.api.DaemonC
+ommandExecution.proceed(Daemon
+CommandExecution.java:104)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.Reques
+tStopIfSingleUsedDaemon.execut
+e(RequestStopIfSingleUsedDaemo
+n.java:35)
+[        ] 	at org.gradle.laun
+cher.daemon.server.api.DaemonC
+ommandExecution.proceed(Daemon
+CommandExecution.java:104)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.Forwar
+dClientInput.lambda$execute$0(
+ForwardClientInput.java:40)
+[        ] 	at org.gradle.inte
+rnal.daemon.clientinput.Client
+InputForwarder.forwardInput(Cl
+ientInputForwarder.java:80)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.Forwar
+dClientInput.execute(ForwardCl
+ientInput.java:37)
+[        ] 	at org.gradle.laun
+cher.daemon.server.api.DaemonC
+ommandExecution.proceed(Daemon
+CommandExecution.java:104)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.LogAnd
+CheckHealth.execute(LogAndChec
+kHealth.java:64)
+[        ] 	at org.gradle.laun
+cher.daemon.server.api.DaemonC
+ommandExecution.proceed(Daemon
+CommandExecution.java:104)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.LogToC
+lient.doBuild(LogToClient.java
+:63)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.BuildC
+ommandOnly.execute(BuildComman
+dOnly.java:37)
+[        ] 	at org.gradle.laun
+cher.daemon.server.api.DaemonC
+ommandExecution.proceed(Daemon
+CommandExecution.java:104)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.Establ
+ishBuildEnvironment.doBuild(Es
+tablishBuildEnvironment.java:8
+4)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.BuildC
+ommandOnly.execute(BuildComman
+dOnly.java:37)
+[        ] 	at org.gradle.laun
+cher.daemon.server.api.DaemonC
+ommandExecution.proceed(Daemon
+CommandExecution.java:104)
+[        ] 	at org.gradle.laun
+cher.daemon.server.exec.StartB
+uildOrRespondWithBusy$1.run(St
+artBuildOrRespondWithBusy.java
+:52)
+[        ] 	at org.gradle.laun
+cher.daemon.server.DaemonState
+Coordinator.lambda$runCommand$
+0(DaemonStateCoordinator.java:
+321)
+[        ] 	at org.gradle.inte
+rnal.concurrent.ExecutorPolicy
+$CatchAndRecordFailures.onExec
+ute(ExecutorPolicy.java:64)
+[        ] 	at org.gradle.inte
+rnal.concurrent.AbstractManage
+dExecutor$1.run(AbstractManage
+dExecutor.java:48)
+[        ] 	at java.base/java.
+util.concurrent.ThreadPoolExec
+utor.runWorker(Unknown Source)
+[        ] 	at java.base/java.
+util.concurrent.ThreadPoolExec
+utor$Worker.run(Unknown 
+Source)
+[        ] 	at java.base/java.
+lang.Thread.run(Unknown 
+Source)
+[        ] BUILD FAILED in 
+896ms
+[        ] 4 actionable tasks: 4 up-to-date
+[        ] Watched directory hierarchies: [C:\src\flutter\packages\flutter_tools\gradle, C:\Users\bhabha\Documents\GitHub\Rust AirDrop Clone\fastshare_ui\android]
+[  +53 ms] Running Gradle task 'assembleDebug'... (completed in 1,097ms)
+[  +27 ms] "flutter apk" took 1,634ms.
+[  +47 ms] Gradle task 
+assembleDebug failed with 
+exit code 1
+[        ] 
+           #0      
+throwToolExit (package:flutter
+_tools/src/base/common.dart:34
+:3)
+           #1      AndroidGrad
+leBuilder.buildGradleApp (pack
+age:flutter_tools/src/android/
+gradle.dart:592:7)
+           <asynchronous 
+suspension>
+           #2      
+AndroidGradleBuilder.buildApk 
+(package:flutter_tools/src/and
+roid/gradle.dart:234:5)
+           <asynchronous 
+suspension>
+           #3      
+BuildApkCommand.runCommand (pa
+ckage:flutter_tools/src/comman
+ds/build_apk.dart:131:5)
+           <asynchronous 
+suspension>
+           #4      
+FlutterCommand.run.<anonymous 
+closure> (package:flutter_tool
+s/src/runner/flutter_command.d
+art:1559:27)
+           <asynchronous 
+suspension>
+           #5      
+AppContext.run.<anonymous 
+closure> (package:flutter_tool
+s/src/base/context.dart:154:19
+)
+           <asynchronous 
+suspension>
+           #6      
+CommandRunner.runCommand (pack
+age:args/command_runner.dart:2
+12:13)
+           <asynchronous 
+suspension>
+           #7      FlutterComm
+andRunner.runCommand.<anonymou
+s closure> (package:flutter_to
+ols/src/runner/flutter_command
+_runner.dart:487:9)
+           <asynchronous 
+suspension>
+           #8      
+AppContext.run.<anonymous 
+closure> (package:flutter_tool
+s/src/base/context.dart:154:19
+)
+           <asynchronous 
+suspension>
+           #9      FlutterComm
+andRunner.runCommand (package:
+flutter_tools/src/runner/flutt
+er_command_runner.dart:422:5)
+           <asynchronous 
+suspension>
+           #10     
+run.<anonymous 
+closure>.<anonymous closure> (
+package:flutter_tools/runner.d
+art:104:11)
+           <asynchronous 
+suspension>
+           #11     
+AppContext.run.<anonymous 
+closure> (package:flutter_tool
+s/src/base/context.dart:154:19
+)
+           <asynchronous 
+suspension>
+           #12     main (packa
+ge:flutter_tools/executable.da
+rt:103:3)
+           <asynchronous 
+suspension>
+
+[        ] Running 1 shutdown hook
+
+[   +1 ms] Shutdown hooks complete
+[ +115 ms] exiting with code 1

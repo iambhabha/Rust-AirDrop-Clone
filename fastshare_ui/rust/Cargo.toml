@@ -19,6 +19,7 @@ local-ip-address = "0.6"
 chrono = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 android_logger = "0.14"
+opener = "0.7"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }

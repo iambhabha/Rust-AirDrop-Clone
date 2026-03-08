@@ -1,0 +1,22 @@
+﻿cargo : error: expected a 
+table, but found a string for 
+`target.aarch64-linux-android.
+cc` in C:\Users\bhabha\Documen
+ts\GitHub\Rust AirDrop Clone\f
+astshare_ui\rust\.cargo\config
+.toml
+At line:1 char:1
++ cargo build --target 
+aarch64-linux-android 
+--release -vv 2>&1 | Out-F ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~
+    + CategoryInfo          : 
+    NotSpecified: (error: ex  
+  pected...rgo\config.toml:   
+ String) [], RemoteExcepti    
+on
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 

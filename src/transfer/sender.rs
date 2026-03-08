@@ -171,7 +171,7 @@ impl TransferSender {
 
         // ── Send File Metadata on first stream ──
         // The receiver expects file plan (0x01) on streams after the handshake
-        let (mut meta_send, _meta_recv) = connection
+        let (mut meta_send, mut meta_recv) = connection
             .open_bi()
             .await
             .context("Failed to open metadata stream")?;
@@ -182,6 +182,13 @@ impl TransferSender {
         meta_send.write_all(&meta_len).await?;
         meta_send.write_all(&file_meta_json).await?;
         meta_send.finish()?;
+
+        // Wait for ACK from receiver to ensure file plan is registered
+        // before we start pummeling it with chunk streams.
+        let mut plan_ack = [0u8; 1];
+        if meta_recv.read_exact(&mut plan_ack).await.is_err() || plan_ack[0] != 0x06 {
+            anyhow::bail!("Receiver rejected file plan or closed stream prematurely");
+        }
 
         // ── Distribute Chunks Across Streams ──
         let bytes_sent = Arc::new(AtomicU64::new(0));

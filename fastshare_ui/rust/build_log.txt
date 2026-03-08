@@ -1,0 +1,506 @@
+﻿cargo :    Compiling ring 
+v0.17.14
+At line:1 char:1
++ cargo build --target 
+aarch64-linux-android 
+--release *>&1 | Out-File  ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (   Compil  
+  ing ring v0.17.14:String)   
+  [], RemoteException
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+   Compiling zstd-sys 
+v2.0.16+zstd.1.5.7
+   Compiling dart-sys v4.1.5
+   Compiling mdns-sd v0.11.5
+   Compiling hostname v0.4.2
+   Compiling image v0.25.9
+   Compiling 
+tracing-subscriber v0.3.22
+   Compiling allo-isolate 
+v0.1.27
+   Compiling dashmap v6.1.0
+   Compiling lz4_flex v0.11.5
+   Compiling indicatif 
+v0.17.11
+   Compiling serde_json 
+v1.0.149
+   Compiling sha2 v0.10.9
+   Compiling tempfile v3.26.0
+   Compiling byteorder v1.5.0
+   Compiling hex v0.4.3
+   Compiling android_logger 
+v0.14.1
+warning: dart-sys@4.1.5: 
+Compiler family detection 
+failed due to error: 
+ToolNotFound: failed to find 
+tool "aarch64-linux-android-cl
+ang": program not found (see h
+ttps://docs.rs/cc/latest/cc/#c
+ompile-time-requirements for 
+help)
+error: failed to run custom 
+build command for `dart-sys 
+v4.1.5`
+
+Caused by:
+  process didn't exit 
+successfully: `C:\Users\bhabha
+\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\release\build\dart-sy
+s-4c4adbb99a750f11\build-scrip
+t-build` (exit code: 1)
+  --- stdout
+  OUT_DIR = Some(C:\Users\bhab
+ha\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\aarch64-linux-android
+\release\build\dart-sys-e355c4
+2fe8fd5194\out)
+  OPT_LEVEL = Some(3)
+  TARGET = 
+Some(aarch64-linux-android)
+  CARGO_ENCODED_RUSTFLAGS = 
+Some()
+  HOST = 
+Some(x86_64-pc-windows-msvc)
+  cargo:rerun-if-env-changed=C
+C_aarch64-linux-android
+  CC_aarch64-linux-android = 
+None
+  cargo:rerun-if-env-changed=C
+C_aarch64_linux_android
+  CC_aarch64_linux_android = 
+None
+  cargo:rerun-if-env-changed=T
+ARGET_CC
+  TARGET_CC = None
+  
+cargo:rerun-if-env-changed=CC
+  CC = None
+  cargo:rerun-if-env-changed=C
+C_ENABLE_DEBUG_OUTPUT
+  cargo:warning=Compiler 
+family detection failed due 
+to error: ToolNotFound: 
+failed to find tool "aarch64-l
+inux-android-clang": program 
+not found (see https://docs.rs
+/cc/latest/cc/#compile-time-re
+quirements for help)
+  RUSTC_WRAPPER = None
+  cargo:rerun-if-env-changed=C
+RATE_CC_NO_DEFAULTS
+  CRATE_CC_NO_DEFAULTS = None
+  DEBUG = Some(false)
+  cargo:rerun-if-env-changed=C
+FLAGS
+  CFLAGS = None
+  cargo:rerun-if-env-changed=T
+ARGET_CFLAGS
+  TARGET_CFLAGS = None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64_linux_android
+  
+CFLAGS_aarch64_linux_android 
+= None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64-linux-android
+  
+CFLAGS_aarch64-linux-android 
+= None
+
+  --- stderr
+
+
+  error occurred in cc-rs: 
+failed to find tool 
+"clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+
+
+warning: build failed, 
+waiting for other jobs to 
+finish...
+warning: ring@0.17.14: 
+Compiler family detection 
+failed due to error: 
+ToolNotFound: failed to find 
+tool "aarch64-linux-android-cl
+ang": program not found (see h
+ttps://docs.rs/cc/latest/cc/#c
+ompile-time-requirements for 
+help)
+warning: ring@0.17.14: 
+Compiler family detection 
+failed due to error: 
+ToolNotFound: failed to find 
+tool "aarch64-linux-android-cl
+ang": program not found (see h
+ttps://docs.rs/cc/latest/cc/#c
+ompile-time-requirements for 
+help)
+error: failed to run custom 
+build command for `ring 
+v0.17.14`
+
+Caused by:
+  process didn't exit 
+successfully: `C:\Users\bhabha
+\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\release\build\ring-d8
+a405ce75b6e026\build-script-bu
+ild` (exit code: 1)
+  --- stdout
+  cargo:rerun-if-env-changed=C
+ARGO_MANIFEST_DIR
+  cargo:rerun-if-env-changed=C
+ARGO_PKG_NAME
+  cargo:rerun-if-env-changed=C
+ARGO_PKG_VERSION_MAJOR
+  cargo:rerun-if-env-changed=C
+ARGO_PKG_VERSION_MINOR
+  cargo:rerun-if-env-changed=C
+ARGO_PKG_VERSION_PATCH
+  cargo:rerun-if-env-changed=C
+ARGO_PKG_VERSION_PRE
+  cargo:rerun-if-env-changed=C
+ARGO_MANIFEST_LINKS
+  cargo:rerun-if-env-changed=R
+ING_PREGENERATE_ASM
+  cargo:rerun-if-env-changed=O
+UT_DIR
+  cargo:rerun-if-env-changed=C
+ARGO_CFG_TARGET_ARCH
+  cargo:rerun-if-env-changed=C
+ARGO_CFG_TARGET_OS
+  cargo:rerun-if-env-changed=C
+ARGO_CFG_TARGET_ENV
+  cargo:rerun-if-env-changed=C
+ARGO_CFG_TARGET_ENDIAN
+  OPT_LEVEL = Some(3)
+  OUT_DIR = Some(C:\Users\bhab
+ha\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\aarch64-linux-android
+\release\build\ring-7935953ccc
+ef447b\out)
+  TARGET = 
+Some(aarch64-linux-android)
+  CARGO_ENCODED_RUSTFLAGS = 
+Some()
+  HOST = 
+Some(x86_64-pc-windows-msvc)
+  cargo:rerun-if-env-changed=C
+C_aarch64-linux-android
+  CC_aarch64-linux-android = 
+None
+  cargo:rerun-if-env-changed=C
+C_aarch64_linux_android
+  CC_aarch64_linux_android = 
+None
+  cargo:rerun-if-env-changed=T
+ARGET_CC
+  TARGET_CC = None
+  
+cargo:rerun-if-env-changed=CC
+  CC = None
+  cargo:rerun-if-env-changed=C
+C_ENABLE_DEBUG_OUTPUT
+  cargo:warning=Compiler 
+family detection failed due 
+to error: ToolNotFound: 
+failed to find tool "aarch64-l
+inux-android-clang": program 
+not found (see https://docs.rs
+/cc/latest/cc/#compile-time-re
+quirements for help)
+  RUSTC_WRAPPER = None
+  cargo:rerun-if-env-changed=C
+RATE_CC_NO_DEFAULTS
+  CRATE_CC_NO_DEFAULTS = None
+  DEBUG = Some(false)
+  cargo:rerun-if-env-changed=C
+FLAGS
+  CFLAGS = None
+  cargo:rerun-if-env-changed=T
+ARGET_CFLAGS
+  TARGET_CFLAGS = None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64_linux_android
+  
+CFLAGS_aarch64_linux_android 
+= None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64-linux-android
+  
+CFLAGS_aarch64-linux-android 
+= None
+  cargo:warning=Compiler 
+family detection failed due 
+to error: ToolNotFound: 
+failed to find tool "aarch64-l
+inux-android-clang": program 
+not found (see https://docs.rs
+/cc/latest/cc/#compile-time-re
+quirements for help)
+
+  --- stderr
+
+
+  error occurred in cc-rs: 
+failed to find tool 
+"clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+
+
+warning: 
+zstd-sys@2.0.16+zstd.1.5.7: 
+Compiler family detection 
+failed due to error: 
+ToolNotFound: failed to find 
+tool "aarch64-linux-android-cl
+ang": program not found (see h
+ttps://docs.rs/cc/latest/cc/#c
+ompile-time-requirements for 
+help)
+warning: 
+zstd-sys@2.0.16+zstd.1.5.7: 
+Compiler family detection 
+failed due to error: 
+ToolNotFound: failed to find 
+tool "clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+warning: 
+zstd-sys@2.0.16+zstd.1.5.7: 
+Compiler family detection 
+failed due to error: 
+ToolNotFound: failed to find 
+tool "clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+warning: 
+zstd-sys@2.0.16+zstd.1.5.7: 
+Compiler family detection 
+failed due to error: 
+ToolNotFound: failed to find 
+tool "clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+error: failed to run custom 
+build command for `zstd-sys 
+v2.0.16+zstd.1.5.7`
+
+Caused by:
+  process didn't exit 
+successfully: `C:\Users\bhabha
+\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\release\build\zstd-sy
+s-58954c58fa9292fa\build-scrip
+t-build` (exit code: 1)
+  --- stdout
+  cargo:rerun-if-env-changed=Z
+STD_SYS_USE_PKG_CONFIG
+  OUT_DIR = Some(C:\Users\bhab
+ha\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\aarch64-linux-android
+\release\build\zstd-sys-73701d
+d8467c2215\out)
+  OPT_LEVEL = Some(3)
+  TARGET = 
+Some(aarch64-linux-android)
+  CARGO_ENCODED_RUSTFLAGS = 
+Some()
+  HOST = 
+Some(x86_64-pc-windows-msvc)
+  cargo:rerun-if-env-changed=C
+C_aarch64-linux-android
+  CC_aarch64-linux-android = 
+None
+  cargo:rerun-if-env-changed=C
+C_aarch64_linux_android
+  CC_aarch64_linux_android = 
+None
+  cargo:rerun-if-env-changed=T
+ARGET_CC
+  TARGET_CC = None
+  
+cargo:rerun-if-env-changed=CC
+  CC = None
+  cargo:rerun-if-env-changed=C
+C_ENABLE_DEBUG_OUTPUT
+  cargo:warning=Compiler 
+family detection failed due 
+to error: ToolNotFound: 
+failed to find tool "aarch64-l
+inux-android-clang": program 
+not found (see https://docs.rs
+/cc/latest/cc/#compile-time-re
+quirements for help)
+  RUSTC_WRAPPER = None
+  cargo:rerun-if-env-changed=C
+RATE_CC_NO_DEFAULTS
+  CRATE_CC_NO_DEFAULTS = None
+  DEBUG = Some(false)
+  cargo:rerun-if-env-changed=C
+FLAGS
+  CFLAGS = None
+  cargo:rerun-if-env-changed=T
+ARGET_CFLAGS
+  TARGET_CFLAGS = None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64_linux_android
+  
+CFLAGS_aarch64_linux_android 
+= None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64-linux-android
+  
+CFLAGS_aarch64-linux-android 
+= None
+  OUT_DIR = Some(C:\Users\bhab
+ha\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\aarch64-linux-android
+\release\build\zstd-sys-73701d
+d8467c2215\out)
+  cargo:rerun-if-env-changed=C
+C_ENABLE_DEBUG_OUTPUT
+  cargo:warning=Compiler 
+family detection failed due 
+to error: ToolNotFound: 
+failed to find tool 
+"clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+  cargo:rerun-if-env-changed=C
+RATE_CC_NO_DEFAULTS
+  CRATE_CC_NO_DEFAULTS = None
+  TARGET = 
+Some(aarch64-linux-android)
+  HOST = 
+Some(x86_64-pc-windows-msvc)
+  cargo:rerun-if-env-changed=C
+FLAGS
+  CFLAGS = None
+  cargo:rerun-if-env-changed=T
+ARGET_CFLAGS
+  TARGET_CFLAGS = None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64_linux_android
+  
+CFLAGS_aarch64_linux_android 
+= None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64-linux-android
+  
+CFLAGS_aarch64-linux-android 
+= None
+  OUT_DIR = Some(C:\Users\bhab
+ha\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\aarch64-linux-android
+\release\build\zstd-sys-73701d
+d8467c2215\out)
+  cargo:rerun-if-env-changed=C
+C_ENABLE_DEBUG_OUTPUT
+  cargo:warning=Compiler 
+family detection failed due 
+to error: ToolNotFound: 
+failed to find tool 
+"clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+  cargo:rerun-if-env-changed=C
+RATE_CC_NO_DEFAULTS
+  CRATE_CC_NO_DEFAULTS = None
+  TARGET = 
+Some(aarch64-linux-android)
+  HOST = 
+Some(x86_64-pc-windows-msvc)
+  cargo:rerun-if-env-changed=C
+FLAGS
+  CFLAGS = None
+  cargo:rerun-if-env-changed=T
+ARGET_CFLAGS
+  TARGET_CFLAGS = None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64_linux_android
+  
+CFLAGS_aarch64_linux_android 
+= None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64-linux-android
+  
+CFLAGS_aarch64-linux-android 
+= None
+  OUT_DIR = Some(C:\Users\bhab
+ha\Documents\GitHub\Rust 
+AirDrop Clone\fastshare_ui\rus
+t\target\aarch64-linux-android
+\release\build\zstd-sys-73701d
+d8467c2215\out)
+  cargo:rerun-if-env-changed=C
+C_ENABLE_DEBUG_OUTPUT
+  cargo:warning=Compiler 
+family detection failed due 
+to error: ToolNotFound: 
+failed to find tool 
+"clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+  cargo:rerun-if-env-changed=C
+RATE_CC_NO_DEFAULTS
+  CRATE_CC_NO_DEFAULTS = None
+  TARGET = 
+Some(aarch64-linux-android)
+  HOST = 
+Some(x86_64-pc-windows-msvc)
+  cargo:rerun-if-env-changed=C
+FLAGS
+  CFLAGS = None
+  cargo:rerun-if-env-changed=T
+ARGET_CFLAGS
+  TARGET_CFLAGS = None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64_linux_android
+  
+CFLAGS_aarch64_linux_android 
+= None
+  cargo:rerun-if-env-changed=C
+FLAGS_aarch64-linux-android
+  
+CFLAGS_aarch64-linux-android 
+= None
+
+  --- stderr
+
+
+  error occurred in cc-rs: 
+failed to find tool 
+"clang.exe": program not 
+found (see https://docs.rs/cc/
+latest/cc/#compile-time-requir
+ements for help)
+
+
