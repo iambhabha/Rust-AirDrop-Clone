@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../../src/rust/api/simple.dart';
 import '../../utils/extensions.dart';
 import '../../models/device_info.dart';
@@ -26,47 +27,43 @@ class SettingsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppTheme.background,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          border: Border.all(color: AppTheme.border, width: 1),
-        ),
-        height: context.height * 0.9,
-        child: SafeArea(
-          child: Column(
+    return Container(
+      decoration: BoxDecoration(
+        color: AppTheme.background,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+        border: Border.all(color: AppTheme.border, width: 1),
+      ),
+      height: context.height * 0.9,
+      child: Scaffold(
+        floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
+        floatingActionButton: _doneBtx(context),
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          top: false,
+          child: ListView(
+            padding: EdgeInsets.symmetric(horizontal: 16.w),
             children: [
-              _buildHeader(context),
               _buildProfile(),
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.symmetric(horizontal: 16.w),
-                  children: [
-                    buildSettingsGroup([
-                      buildSettingsRow(
-                        icon: CupertinoIcons.person_fill,
-                        color: AppTheme.mutedForeground,
-                        title: 'Profile',
-                        isNav: true,
-                      ),
-                      buildSettingsRow(
-                        icon: CupertinoIcons.desktopcomputer,
-                        color: AppTheme.mutedForeground,
-                        title: 'Devices',
-                        trailingText: '${savedDevices.length} ',
-                        isNav: true,
-                      ),
-                    ]),
-                    const SizedBox(height: 20),
-                    _buildMainSettings(),
-                    const SizedBox(height: 12),
-                    _buildSocialGroup(),
-                    const SizedBox(height: 30),
-                  ],
+              buildSettingsGroup([
+                buildSettingsRow(
+                  icon: CupertinoIcons.person_fill,
+                  color: AppTheme.mutedForeground,
+                  title: 'Profile',
+                  isNav: true,
                 ),
-              ),
+                buildSettingsRow(
+                  icon: CupertinoIcons.desktopcomputer,
+                  color: AppTheme.mutedForeground,
+                  title: 'Devices',
+                  trailingText: '${savedDevices.length} ',
+                  isNav: true,
+                ),
+              ]),
+              const SizedBox(height: 20),
+              _buildMainSettings(),
+              const SizedBox(height: 12),
+              _buildSocialGroup(),
+              const SizedBox(height: 30),
             ],
           ),
         ),
@@ -74,29 +71,38 @@ class SettingsSheet extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Settings',
-            style: TextStyle(
-              color: AppTheme.foreground,
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
+  Theme _doneBtx(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(highlightColor: Colors.transparent),
+      child: FloatingActionButton(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        highlightElevation: 0,
+        disabledElevation: 0,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        focusColor: Colors.transparent,
+        hoverColor: Colors.transparent,
+        splashColor: Colors.transparent,
+        onPressed: () => Navigator.of(context).pop(),
+        child: LiquidGlassLayer(
+          useBackdropGroup: true,
+          child: LiquidStretch(
+            child: LiquidGlass(
+              shape: LiquidRoundedSuperellipse(borderRadius: 15),
+              child: Padding(
+                padding: const EdgeInsets.all(10.0).copyWith(top: 8, bottom: 8),
+                child: Text(
+                  'Done',
+                  style: TextStyle(
+                    color: AppTheme.foreground,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
             ),
           ),
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(
-              Icons.close,
-              color: AppTheme.mutedForeground,
-              size: 20,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
