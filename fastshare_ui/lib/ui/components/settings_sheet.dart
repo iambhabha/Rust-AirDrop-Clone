@@ -5,6 +5,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../src/rust/api/simple.dart';
 import '../../utils/extensions.dart';
 import '../../models/device_info.dart';
+import '../theme.dart';
 import 'settings_widgets.dart';
 
 class SettingsSheet extends StatelessWidget {
@@ -27,53 +28,46 @@ class SettingsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF18181B).withOpacity(0.95),
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppTheme.background,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          border: Border.all(color: AppTheme.border, width: 1),
+        ),
+        height: context.height * 0.9,
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(context),
+              _buildProfile(),
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.symmetric(horizontal: 16.w),
+                  children: [
+                    buildSettingsGroup([
+                      buildSettingsRow(
+                        icon: CupertinoIcons.person_fill,
+                        color: AppTheme.mutedForeground,
+                        title: 'Profile',
+                        isNav: true,
+                      ),
+                      buildSettingsRow(
+                        icon: CupertinoIcons.desktopcomputer,
+                        color: AppTheme.mutedForeground,
+                        title: 'Devices',
+                        trailingText: '${savedDevices.length} ',
+                        isNav: true,
+                      ),
+                    ]),
+                    const SizedBox(height: 20),
+                    _buildMainSettings(),
+                    const SizedBox(height: 12),
+                    _buildSocialGroup(),
+                    const SizedBox(height: 30),
+                  ],
+                ),
               ),
-            ),
-            height: context.height * 0.9,
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _buildHeader(context),
-                  _buildProfile(),
-                  Expanded(
-                    child: ListView(
-                      padding: EdgeInsets.symmetric(horizontal: 16.w),
-                      children: [
-                        buildSettingsGroup([
-                          buildSettingsRow(
-                            icon: Icons.person,
-                            color: Colors.grey,
-                            title: 'Profile',
-                            isNav: true,
-                          ),
-                          buildSettingsRow(
-                            icon: Icons.computer,
-                            color: Colors.grey,
-                            title: 'Devices',
-                            trailingText: '${savedDevices.length} ',
-                            isNav: true,
-                          ),
-                        ]),
-                        const SizedBox(height: 20),
-                        _buildMainSettings(),
-                        const SizedBox(height: 10),
-                        _buildSocialGroup(),
-                        const SizedBox(height: 30),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            ],
           ),
         ),
       ),
@@ -82,27 +76,24 @@ class SettingsSheet extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
+          const Text(
+            'Settings',
+            style: TextStyle(
+              color: AppTheme.foreground,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
-            child: CupertinoButton(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              minSize: 0,
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
-                'Done',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+          ),
+          IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const Icon(
+              Icons.close,
+              color: AppTheme.mutedForeground,
+              size: 20,
             ),
           ),
         ],
@@ -115,19 +106,20 @@ class SettingsSheet extends StatelessWidget {
       children: [
         const SizedBox(height: 10),
         Container(
-          width: 80.w,
-          height: 80.w,
+          width: 70.w,
+          height: 70.w,
           decoration: BoxDecoration(
-            color: Colors.grey.withOpacity(0.5),
+            color: AppTheme.card,
             shape: BoxShape.circle,
+            border: Border.all(color: AppTheme.border),
           ),
           child: Center(
             child: Text(
               'D',
               style: TextStyle(
-                fontSize: 40.sp,
+                fontSize: 32.sp,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: AppTheme.foreground,
               ),
             ),
           ),
@@ -136,14 +128,14 @@ class SettingsSheet extends StatelessWidget {
         const Text(
           'dev',
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: AppTheme.foreground,
           ),
         ),
         const Text(
           'devrajheropanti@gmail.com',
-          style: TextStyle(fontSize: 14, color: Colors.white54),
+          style: TextStyle(fontSize: 12, color: AppTheme.mutedForeground),
         ),
         const SizedBox(height: 24),
       ],
@@ -155,16 +147,15 @@ class SettingsSheet extends StatelessWidget {
       children: [
         buildSettingsGroup([
           buildSettingsRow(
-            icon: Icons.notifications,
-            color: Colors.redAccent,
-            title: 'Push Notifications',
-            trailingText: 'Enable',
-            trailingColor: Colors.blueAccent,
+            icon: CupertinoIcons.bell_fill,
+            color: Colors.blueAccent,
+            title: 'Notifications',
+            trailingText: 'On',
           ),
           buildSettingsRow(
-            icon: Icons.speed,
-            color: Colors.pinkAccent,
-            title: 'Fast Transfer (No Checksum)',
+            icon: CupertinoIcons.speedometer,
+            color: AppTheme.primary,
+            title: 'Fast Transfer',
             isSwitch: true,
             switchValue: !checksumEnabled,
             onSwitchChanged: (v) {
@@ -173,9 +164,9 @@ class SettingsSheet extends StatelessWidget {
             },
           ),
           buildSettingsRow(
-            icon: Icons.compress,
-            color: Colors.purpleAccent,
-            title: 'Data Compression',
+            icon: CupertinoIcons.archivebox_fill,
+            color: Colors.tealAccent,
+            title: 'Compression',
             isSwitch: true,
             switchValue: compressionEnabled,
             onSwitchChanged: (v) {
@@ -184,26 +175,18 @@ class SettingsSheet extends StatelessWidget {
             },
           ),
           buildSettingsRow(
-            icon: Icons.folder,
-            color: Colors.blueAccent,
-            title: 'Save Files to',
+            icon: CupertinoIcons.folder_fill,
+            color: Colors.amberAccent,
+            title: 'Download Path',
             trailingText: 'Rust Drop',
-            trailingColor: Colors.blueAccent,
-            trailingIcon: Icons.folder_open,
-          ),
-          buildSettingsRow(
-            icon: Icons.image,
-            color: Colors.blue,
-            title: 'Add to Photos',
-            isSwitch: true,
-            switchValue: false,
+            isNav: true,
           ),
         ]),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.all(12),
           child: Text(
-            'Received files are saved to the Files app. When enabled, received photos and videos are also added to the Photos app.',
-            style: TextStyle(color: Colors.white38, fontSize: 12.sp),
+            'High performance transfer mode skips checksum verification for maximum speed on trusted local networks.',
+            style: TextStyle(color: AppTheme.mutedForeground, fontSize: 11.sp),
           ),
         ),
       ],
@@ -213,25 +196,22 @@ class SettingsSheet extends StatelessWidget {
   Widget _buildSocialGroup() {
     return buildSettingsGroup([
       buildSettingsRow(
-        icon: Icons.email,
-        color: Colors.blue,
-        title: 'Email',
-        trailingText: 'hello@Rust Drop.io',
-        trailingColor: Colors.blueAccent,
+        icon: CupertinoIcons.envelope_fill,
+        color: AppTheme.mutedForeground,
+        title: 'Email Support',
+        trailingText: 'Contact',
       ),
       buildSettingsRow(
-        icon: Icons.chat_bubble,
-        color: Colors.indigoAccent,
+        icon: CupertinoIcons.bubble_left_bubble_right_fill,
+        color: AppTheme.mutedForeground,
         title: 'Discord',
-        trailingText: 'Join our community',
-        trailingColor: Colors.blueAccent,
+        trailingText: 'Join',
       ),
       buildSettingsRow(
-        icon: Icons.close,
-        color: Colors.black,
+        icon: CupertinoIcons.xmark,
+        color: AppTheme.foreground,
         title: 'X.com',
-        trailingText: '@Rust Drop',
-        trailingColor: Colors.blueAccent,
+        trailingText: '@RustDrop',
       ),
     ]);
   }

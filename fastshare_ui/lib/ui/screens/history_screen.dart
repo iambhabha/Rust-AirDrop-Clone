@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'home_screen.dart';
+import '../theme.dart';
 
 class TransferHistoryScreen extends StatefulWidget {
   const TransferHistoryScreen({super.key});
@@ -28,19 +29,16 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: const Text(
-          'Transfer History',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        title: const Text('Transfer History'),
         bottom: TabBar(
           controller: _tabController,
-          indicatorColor: const Color(0xFF9000FF),
-          indicatorWeight: 3,
-          labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+          indicatorColor: AppTheme.primary,
+          indicatorWeight: 2,
+          dividerColor: AppTheme.border,
+          labelColor: AppTheme.primary,
+          unselectedLabelColor: AppTheme.mutedForeground,
           tabs: const [
             Tab(text: 'All'),
             Tab(text: 'Received'),
@@ -49,7 +47,7 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(Icons.refresh, color: AppTheme.mutedForeground),
             onPressed: () => fastShareStore.loadHistory(),
           ),
         ],
@@ -58,10 +56,9 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
         builder: (_) {
           if (fastShareStore.isHistoryLoading) {
             return const Center(
-              child: CircularProgressIndicator(color: Color(0xFF9000FF)),
+              child: CircularProgressIndicator(color: AppTheme.primary),
             );
           }
-
           return TabBarView(
             controller: _tabController,
             physics: const BouncingScrollPhysics(),
@@ -86,11 +83,11 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history, size: 64, color: Colors.white.withOpacity(0.1)),
+            Icon(Icons.history, size: 48, color: AppTheme.border),
             const SizedBox(height: 16),
             const Text(
               'No transfers found',
-              style: TextStyle(color: Colors.white54, fontSize: 16),
+              style: TextStyle(color: AppTheme.mutedForeground),
             ),
           ],
         ),
@@ -103,33 +100,24 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
       itemBuilder: (context, index) {
         final item = items[index];
         return TweenAnimationBuilder<double>(
-          duration: Duration(milliseconds: 400 + (index.clamp(0, 10) * 50)),
+          duration: Duration(milliseconds: 300 + (index.clamp(0, 10) * 50)),
           tween: Tween(begin: 0.0, end: 1.0),
-          curve: Curves.easeOutCubic,
-          builder: (context, value, child) {
-            return Transform.translate(
-              offset: Offset(0, 20 * (1 - value)),
-              child: Opacity(opacity: value, child: child),
-            );
-          },
+          curve: Curves.easeOut,
+          builder: (context, value, child) =>
+              Opacity(opacity: value, child: child),
           child: Card(
-            color: const Color(0xFF1E1E1E),
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.white.withOpacity(0.05)),
-            ),
             margin: const EdgeInsets.only(bottom: 12),
+            color: AppTheme.card.withOpacity(0.5),
             child: ListTile(
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
-                vertical: 8,
+                vertical: 4,
               ),
               leading: Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color:
-                      (item.isIncoming ? Colors.tealAccent : Colors.blueAccent)
+                      (item.isIncoming ? AppTheme.primary : AppTheme.foreground)
                           .withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
@@ -138,29 +126,30 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
                       ? Icons.download_rounded
                       : Icons.upload_rounded,
                   color: item.isIncoming
-                      ? Colors.tealAccent
-                      : Colors.blueAccent,
-                  size: 20,
+                      ? AppTheme.primary
+                      : AppTheme.foreground,
+                  size: 18,
                 ),
               ),
               title: Text(
                 item.fileName.fileName,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: AppTheme.foreground,
                   fontWeight: FontWeight.w500,
+                  fontSize: 14,
                 ),
               ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text(
-                  '${item.status} • ${item.timestamp}',
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+              subtitle: Text(
+                '${item.status} • ${item.timestamp}',
+                style: const TextStyle(
+                  color: AppTheme.mutedForeground,
+                  fontSize: 11,
                 ),
               ),
               trailing: const Icon(
-                Icons.chevron_right,
-                color: Colors.white24,
-                size: 20,
+                Icons.arrow_forward_ios,
+                color: AppTheme.border,
+                size: 12,
               ),
             ),
           ),

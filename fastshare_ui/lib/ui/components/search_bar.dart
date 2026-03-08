@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../screens/qr_scanner_screen.dart';
+import '../theme.dart';
 
 class SearchBar extends StatefulWidget {
   final TextEditingController controller;
@@ -26,7 +27,7 @@ class _SearchBarState extends State<SearchBar>
     super.initState();
     _focusController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 200),
     );
     _focusNode.addListener(() {
       if (_focusNode.hasFocus) {
@@ -53,24 +54,24 @@ class _SearchBarState extends State<SearchBar>
         builder: (context, child) {
           return Container(
             decoration: BoxDecoration(
-              color: const Color(0xFF1E1E1E),
-              borderRadius: BorderRadius.circular(16),
+              color: AppTheme.card.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: Color.lerp(
-                  Colors.white.withOpacity(0.05),
-                  const Color(0xFF9000FF).withOpacity(0.5),
+                  AppTheme.border,
+                  AppTheme.foreground.withOpacity(0.5),
                   _focusController.value,
                 )!,
-                width: 1.5,
+                width: 1,
               ),
               boxShadow: [
                 if (_focusController.value > 0)
                   BoxShadow(
-                    color: const Color(
-                      0xFF9000FF,
-                    ).withOpacity(0.1 * _focusController.value),
-                    blurRadius: 10,
-                    spreadRadius: 2,
+                    color: Colors.white.withOpacity(
+                      0.05 * _focusController.value,
+                    ),
+                    blurRadius: 4,
+                    spreadRadius: 1,
                   ),
               ],
             ),
@@ -82,10 +83,21 @@ class _SearchBarState extends State<SearchBar>
           focusNode: _focusNode,
           decoration: InputDecoration(
             hintText: 'Name or Email',
-            hintStyle: const TextStyle(color: Colors.white38),
-            prefixIcon: const Icon(Icons.search, color: Colors.white38),
+            hintStyle: TextStyle(
+              color: AppTheme.mutedForeground,
+              fontSize: 14.sp,
+            ),
+            prefixIcon: Icon(
+              Icons.search,
+              color: AppTheme.mutedForeground,
+              size: 20.w,
+            ),
             suffixIcon: IconButton(
-              icon: const Icon(Icons.qr_code_scanner, color: Colors.white38),
+              icon: Icon(
+                Icons.qr_code_scanner,
+                color: AppTheme.mutedForeground,
+                size: 20.w,
+              ),
               onPressed: () async {
                 final ip = await Navigator.push<String>(
                   context,
@@ -97,7 +109,7 @@ class _SearchBarState extends State<SearchBar>
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppTheme.foreground),
         ),
       ),
     );

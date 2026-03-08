@@ -1,12 +1,15 @@
+import 'package:cupertino_native/cupertino_native.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import '../theme.dart';
 
 Widget buildSettingsGroup(List<Widget> rows) {
   return Container(
     clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
-      color: const Color(0xFF2C2C2E),
-      borderRadius: BorderRadius.circular(20),
+      color: AppTheme.card.withOpacity(0.5),
+      borderRadius: BorderRadius.circular(8),
+      border: Border.all(color: AppTheme.border, width: 1),
     ),
     child: Column(
       children: rows
@@ -16,11 +19,7 @@ Widget buildSettingsGroup(List<Widget> rows) {
             (entry) => [
               entry.value,
               if (entry.key != rows.length - 1)
-                Divider(
-                  color: Colors.white.withOpacity(0.05),
-                  height: 1,
-                  indent: 52,
-                ),
+                Divider(color: AppTheme.border, height: 1, indent: 48),
             ],
           )
           .toList(),
@@ -47,38 +46,31 @@ Widget buildSettingsRow({
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
+          Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.3),
-                  blurRadius: 8,
-                  spreadRadius: 1,
-                ),
-              ],
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: color.withOpacity(0.2), width: 1),
             ),
-            child: Icon(icon, color: Colors.white, size: 18),
+            child: Icon(icon, color: color, size: 16),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               title,
               style: const TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
+                color: AppTheme.foreground,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
           if (trailingIcon != null) ...[
             Icon(
               trailingIcon,
-              color: trailingColor ?? Colors.white54,
-              size: 16,
+              color: trailingColor ?? AppTheme.mutedForeground,
+              size: 14,
             ),
             const SizedBox(width: 4),
           ],
@@ -86,23 +78,20 @@ Widget buildSettingsRow({
             Text(
               trailingText,
               style: TextStyle(
-                color: trailingColor ?? Colors.white54,
-                fontSize: 15,
+                color: trailingColor ?? AppTheme.mutedForeground,
+                fontSize: 13,
               ),
             ),
           if (isNav) ...[
             const SizedBox(width: 4),
-            const Icon(Icons.chevron_right, color: Colors.white38, size: 20),
+            Icon(
+              CupertinoIcons.chevron_right,
+              color: AppTheme.border,
+              size: 14,
+            ),
           ],
           if (isSwitch)
-            Transform.scale(
-              scale: 0.8,
-              child: CupertinoSwitch(
-                value: switchValue,
-                onChanged: onSwitchChanged,
-                activeColor: const Color(0xFF30D158),
-              ),
-            ),
+            CNSwitch(value: switchValue, onChanged: onSwitchChanged ?? (_) {}),
         ],
       ),
     ),

@@ -1,6 +1,9 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../../models/transfer_progress.dart';
+import '../theme.dart';
 
 class ReceivedStack extends StatefulWidget {
   final List<TransferProgress> activeIncoming;
@@ -57,9 +60,9 @@ class _ReceivedStackState extends State<ReceivedStack>
       padding: EdgeInsets.all(20.w),
       width: double.infinity,
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: Colors.white.withOpacity(0.05), width: 1.5),
+        color: AppTheme.card,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppTheme.border, width: 1),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -82,8 +85,9 @@ class _ReceivedStackState extends State<ReceivedStack>
 
   Widget _buildIdleStack() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        SizedBox(width: double.infinity),
         AnimatedBuilder(
           key: const ValueKey('idle'),
           animation: _floatController,
@@ -96,93 +100,37 @@ class _ReceivedStackState extends State<ReceivedStack>
               child: child,
             );
           },
-          child: Container(
-            width: 140.w,
-            height: 140.h,
-            margin: EdgeInsets.only(left: 8.w),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned(
-                  top: -15,
-                  left: 15,
-                  right: -15,
-                  child: _buildStackChild(opacity: 0.03),
+          child: SvgPicture.asset(
+            'assets/images/empty_state.svg',
+            width: 180.w,
+            height: 180.w,
+            placeholderBuilder: (context) => Container(
+              width: 180.w,
+              height: 180.w,
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: AppTheme.primary,
+                  strokeWidth: 2,
                 ),
-                Positioned(
-                  top: -8,
-                  left: 8,
-                  right: -8,
-                  child: _buildStackChild(opacity: 0.06),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.2),
-                        Colors.white.withOpacity(0.08),
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.2),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Center(
-                    child: Container(
-                      padding: EdgeInsets.all(12.w),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF9000FF),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.computer,
-                        color: Colors.white,
-                        size: 28.w,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
-        SizedBox(height: 16.h),
-        Padding(
-          padding: EdgeInsets.only(left: 8.w),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '0 Items',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16.sp,
-                ),
-              ),
-              Text(
-                'No recent transfers',
-                style: TextStyle(color: Colors.white54, fontSize: 12.sp),
-              ),
-            ],
+        SizedBox(height: 12.h),
+        Text(
+          'No received files found',
+          style: TextStyle(
+            color: AppTheme.foreground,
+            fontWeight: FontWeight.bold,
+            fontSize: 16.sp,
           ),
         ),
+        SizedBox(height: 4.h),
+        Text(
+          'Your transfer history will appear here',
+          style: TextStyle(color: AppTheme.mutedForeground, fontSize: 12.sp),
+        ),
       ],
-    );
-  }
-
-  Widget _buildStackChild({required double opacity}) {
-    return Container(
-      height: 140.h,
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(opacity),
-        borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: Colors.white.withOpacity(opacity + 0.02)),
-      ),
     );
   }
 }
@@ -205,12 +153,14 @@ class _TransferItem extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF9000FF).withOpacity(0.1),
+                  color: AppTheme.primary.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  isIncoming ? Icons.download : Icons.upload,
-                  color: const Color(0xFF9000FF),
+                  isIncoming
+                      ? CupertinoIcons.arrow_down_circle
+                      : CupertinoIcons.arrow_up_circle,
+                  color: AppTheme.primary,
                   size: 14.sp,
                 ),
               ),
@@ -222,7 +172,7 @@ class _TransferItem extends StatelessWidget {
                     Text(
                       progress.fileName,
                       style: TextStyle(
-                        color: Colors.white,
+                        color: AppTheme.foreground,
                         fontSize: 13.sp,
                         fontWeight: FontWeight.w600,
                       ),
@@ -230,7 +180,10 @@ class _TransferItem extends StatelessWidget {
                     ),
                     Text(
                       _formatSpeed(progress.speed),
-                      style: TextStyle(color: Colors.white54, fontSize: 11.sp),
+                      style: TextStyle(
+                        color: AppTheme.mutedForeground,
+                        fontSize: 11.sp,
+                      ),
                     ),
                   ],
                 ),
@@ -238,7 +191,7 @@ class _TransferItem extends StatelessWidget {
               Text(
                 '${progress.progress.toInt()}%',
                 style: TextStyle(
-                  color: const Color(0xFF9000FF),
+                  color: AppTheme.primary,
                   fontWeight: FontWeight.bold,
                   fontSize: 12.sp,
                 ),
@@ -247,12 +200,12 @@ class _TransferItem extends StatelessWidget {
           ),
           SizedBox(height: 10.h),
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: progress.progress / 100,
-              backgroundColor: Colors.white.withOpacity(0.05),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFF9000FF)),
-              minHeight: 6.h,
+              backgroundColor: AppTheme.border,
+              valueColor: const AlwaysStoppedAnimation(AppTheme.primary),
+              minHeight: 4.h,
             ),
           ),
         ],
@@ -262,20 +215,13 @@ class _TransferItem extends StatelessWidget {
 
   String _formatSpeed(String? speed) {
     if (speed == null) return "0 B/s";
-    // If it's already a formatted string from engine
     if (speed.contains("B") || speed.contains("M") || speed.contains("K"))
       return speed;
-
-    // Otherwise try to parse as number
     final numSpeed = double.tryParse(speed);
     if (numSpeed == null) return speed;
-
-    if (numSpeed > 1024 * 1024) {
+    if (numSpeed > 1024 * 1024)
       return "${(numSpeed / (1024 * 1024)).toStringAsFixed(1)} MB/s";
-    } else if (numSpeed > 1024) {
-      return "${(numSpeed / 1024).toStringAsFixed(1)} KB/s";
-    } else {
-      return "${numSpeed.toStringAsFixed(0)} B/s";
-    }
+    if (numSpeed > 1024) return "${(numSpeed / 1024).toStringAsFixed(1)} KB/s";
+    return "${numSpeed.toStringAsFixed(0)} B/s";
   }
 }

@@ -26,13 +26,7 @@ class MyApp extends StatelessWidget {
           navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
           title: 'Rust Drop',
-          theme: AppTheme.darkTheme.copyWith(
-            scaffoldBackgroundColor: const Color(0xFF000000),
-            colorScheme: const ColorScheme.dark(
-              primary: Color(0xFF9000FF), // The Blip purple
-              surface: Color(0xFF1C1C1E),
-            ),
-          ),
+          theme: AppTheme.darkTheme,
           home: child,
         );
       },

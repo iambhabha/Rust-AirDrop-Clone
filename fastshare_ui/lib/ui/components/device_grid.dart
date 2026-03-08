@@ -1,6 +1,8 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../models/device_info.dart';
+import '../theme.dart';
 
 class DeviceGrid extends StatelessWidget {
   final List<DeviceInfo> devices;
@@ -37,14 +39,14 @@ class DeviceGrid extends StatelessWidget {
           ),
         ),
         _buildSpecialIcon(
-          icon: Icons.devices,
-          color: Colors.white60,
+          icon: CupertinoIcons.device_desktop,
+          color: AppTheme.mutedForeground,
           label: 'Set up a Device',
           delay: devices.length,
         ),
         _buildSpecialIcon(
-          icon: Icons.card_giftcard,
-          color: Colors.white60,
+          icon: CupertinoIcons.gift,
+          color: AppTheme.mutedForeground,
           label: 'Tell Someone\nAbout Rust Drop',
           delay: devices.length + 1,
         ),
@@ -119,13 +121,13 @@ class _DeviceIconState extends State<_DeviceIcon>
                   animation: _pulseController,
                   builder: (context, child) {
                     return Container(
-                      width: 70.w + (12 * _pulseController.value),
-                      height: 70.w + (12 * _pulseController.value),
+                      width: 70.w + (14 * _pulseController.value),
+                      height: 70.w + (14 * _pulseController.value),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: const Color(
-                          0xFF9000FF,
-                        ).withOpacity(0.2 * (1 - _pulseController.value)),
+                        color: AppTheme.primary.withOpacity(
+                          0.15 * (1 - _pulseController.value),
+                        ),
                       ),
                     );
                   },
@@ -137,39 +139,43 @@ class _DeviceIconState extends State<_DeviceIcon>
                 height: 70.w,
                 decoration: BoxDecoration(
                   color: widget.device.isOnline
-                      ? const Color(0xFF9000FF)
-                      : const Color(0xFF1E1E1E),
+                      ? AppTheme.primary
+                      : AppTheme.card,
                   shape: BoxShape.circle,
                   border: Border.all(
                     color: widget.device.isOnline
-                        ? Colors.white.withOpacity(0.2)
-                        : Colors.white.withOpacity(0.05),
-                    width: 1.5,
+                        ? Colors.white.withOpacity(0.3)
+                        : AppTheme.border,
+                    width: 1,
                   ),
                   boxShadow: widget.device.isOnline
                       ? [
                           BoxShadow(
-                            color: const Color(0xFF9000FF).withOpacity(0.5),
-                            blurRadius: 20,
-                            spreadRadius: 2,
+                            color: AppTheme.primary.withOpacity(0.4),
+                            blurRadius: 15,
+                            spreadRadius: 1,
                           ),
                         ]
                       : [],
                 ),
                 child: Center(
                   child: widget.device.isOnline
-                      ? Icon(Icons.computer, color: Colors.white, size: 30.w)
+                      ? Icon(
+                          CupertinoIcons.desktopcomputer,
+                          color: Colors.white,
+                          size: 30.w,
+                        )
                       : Text(
                           widget.device.initial,
                           style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 24.sp,
+                            color: AppTheme.mutedForeground,
+                            fontSize: 22.sp,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                 ),
               ),
-              // Nearby Green Dot Indicator
+              // Nearby Indicator
               if (widget.device.isOnline)
                 Positioned(
                   top: 2.w,
@@ -178,14 +184,13 @@ class _DeviceIconState extends State<_DeviceIcon>
                     width: 14.w,
                     height: 14.w,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF30D158), // iOS Green
+                      color: const Color(0xFF32D74B), // Balanced Green
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black, width: 2),
+                      border: Border.all(color: AppTheme.background, width: 2),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF30D158).withOpacity(0.6),
-                          blurRadius: 6,
-                          spreadRadius: 1,
+                          color: const Color(0xFF32D74B).withOpacity(0.5),
+                          blurRadius: 4,
                         ),
                       ],
                     ),
@@ -200,7 +205,9 @@ class _DeviceIconState extends State<_DeviceIcon>
               duration: const Duration(milliseconds: 300),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: widget.device.isOnline ? Colors.white : Colors.white54,
+                color: widget.device.isOnline
+                    ? AppTheme.foreground
+                    : AppTheme.mutedForeground,
                 fontSize: 11.sp,
                 fontWeight: widget.device.isOnline
                     ? FontWeight.w600
@@ -216,7 +223,7 @@ class _DeviceIconState extends State<_DeviceIcon>
             Text(
               'Nearby',
               style: TextStyle(
-                color: const Color(0xFF30D158),
+                color: const Color(0xFF32D74B),
                 fontSize: 9.sp,
                 fontWeight: FontWeight.bold,
               ),
@@ -247,12 +254,9 @@ class _SpecialIcon extends StatelessWidget {
           width: 70.w,
           height: 70.w,
           decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
+            color: AppTheme.card.withOpacity(0.5),
             shape: BoxShape.circle,
-            border: Border.all(
-              color: Colors.white.withOpacity(0.05),
-              width: 1.5,
-            ),
+            border: Border.all(color: AppTheme.border, width: 1),
           ),
           child: Icon(icon, color: color, size: 28.w),
         ),
@@ -262,10 +266,9 @@ class _SpecialIcon extends StatelessWidget {
           child: Text(
             label,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white54, fontSize: 11.sp),
+            style: TextStyle(color: AppTheme.mutedForeground, fontSize: 11.sp),
           ),
         ),
-        // Placeholder for consistency with online devices
         Opacity(
           opacity: 0,
           child: Text('Nearby', style: TextStyle(fontSize: 9.sp)),

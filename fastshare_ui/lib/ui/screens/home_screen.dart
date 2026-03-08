@@ -5,7 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' hide SearchBar;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-
+import '../../ui/theme.dart';
 import '../../src/rust/api/simple.dart';
 import '../../models/transfer_progress.dart';
 import '../../utils/extensions.dart';
@@ -102,7 +102,7 @@ class _FastShareHomeState extends State<FastShareHome>
             child: const Text(
               'Accept',
               style: TextStyle(
-                color: Color(0xFF9000FF),
+                color: AppTheme.primary,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -115,10 +115,10 @@ class _FastShareHomeState extends State<FastShareHome>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
         leading: IconButton(
-          icon: const Icon(Icons.settings_outlined, color: Colors.white60),
+          icon: const Icon(CupertinoIcons.settings, color: Colors.white60),
           onPressed: _showSettings,
         ),
         title: Text(
@@ -134,7 +134,7 @@ class _FastShareHomeState extends State<FastShareHome>
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.history, color: Colors.white60),
+            icon: const Icon(CupertinoIcons.clock, color: Colors.white60),
             onPressed: () => context.push(const TransferHistoryScreen()),
           ),
         ],
