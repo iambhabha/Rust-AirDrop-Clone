@@ -6,10 +6,20 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:downloadsfolder/downloadsfolder.dart';
 import 'package:fastshare_ui/src/rust/api/simple.dart';
 import 'package:fastshare_ui/src/rust/frb_generated.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+String _formatSize(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+  if (bytes < 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+  return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -77,6 +87,7 @@ class HistoryItem {
   final String status;
   final String timestamp;
   final bool isIncoming;
+  final int totalFiles;
   final String? savedPath;
 
   HistoryItem({
@@ -85,6 +96,7 @@ class HistoryItem {
     required this.status,
     required this.timestamp,
     required this.isIncoming,
+    this.totalFiles = 1,
     this.savedPath,
   });
 
@@ -95,6 +107,7 @@ class HistoryItem {
       status: json['status'] ?? '',
       timestamp: json['timestamp'] ?? '',
       isIncoming: json['is_incoming'] ?? false,
+      totalFiles: json['total_files'] ?? 1,
       savedPath: json['saved_path'],
     );
   }
@@ -162,14 +175,22 @@ class _FastShareHomeState extends State<FastShareHome>
     });
 
     try {
-      final downloadDir =
-          await getExternalStorageDirectory() ??
-          await getApplicationDocumentsDirectory();
-      final downloadPath = Directory('${downloadDir.path}/FastShare').path;
+      String? downloadPath;
+      if (Platform.isAndroid) {
+        // Use downloadsfolder package for real Download folder on Android
+        downloadPath = (await getDownloadDirectory()).path;
+        debugPrint("Android Download Path: $downloadPath");
+      } else {
+        final downloadDir =
+            await getExternalStorageDirectory() ??
+            await getApplicationDocumentsDirectory();
+        downloadPath = Directory('${downloadDir.path}/FastShare').path;
+      }
+
       final tempDir = await getTemporaryDirectory();
       final tempPath = Directory('${tempDir.path}/FastShare/temp').path;
 
-      // Ensure directories exist on the Flutter side for better reliability on Android
+      // Ensure directories exist
       await Directory(downloadPath).create(recursive: true);
       await Directory(tempPath).create(recursive: true);
 
@@ -256,6 +277,8 @@ class _FastShareHomeState extends State<FastShareHome>
       final fileName = map['file_name'] as String? ?? '';
       final totalFilesRaw = map['total_files'];
       final totalFiles = (totalFilesRaw is num) ? totalFilesRaw.toInt() : 1;
+      final totalSizeRaw = map['total_size'];
+      final totalSize = (totalSizeRaw is num) ? totalSizeRaw.toDouble() : 0.0;
 
       if (fileId.isEmpty) return;
 
@@ -341,13 +364,48 @@ class _FastShareHomeState extends State<FastShareHome>
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (totalFiles > 1) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '+ ${totalFiles - 1} more files',
+                              style: const TextStyle(
+                                color: Colors.tealAccent,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              _formatSize(totalSize.toInt()),
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
                       const SizedBox(height: 8),
-                      Text(
-                        '+ ${totalFiles - 1} more files',
-                        style: const TextStyle(
-                          color: Colors.tealAccent,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          'Size: ${_formatSize(totalSize.toInt())}',
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -599,13 +657,13 @@ class _FastShareHomeState extends State<FastShareHome>
 
   void _showSnackBar(String m, {String? action, bool isError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
       SnackBar(
         content: Text(m, style: const TextStyle(fontWeight: FontWeight.w500)),
         backgroundColor: isError
             ? Colors.redAccent
             : (action == "HISTORY"
-                  ? Theme.of(context).colorScheme.primary
+                  ? Theme.of(navigatorKey.currentContext!).colorScheme.primary
                   : null), // Use primary color for history action, default otherwise
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -614,7 +672,7 @@ class _FastShareHomeState extends State<FastShareHome>
             ? SnackBarAction(
                 label: "VIEW",
                 onPressed: () {
-                  Navigator.of(context).push(
+                  Navigator.of(navigatorKey.currentContext!).push(
                     MaterialPageRoute(
                       builder: (context) => const TransferHistoryScreen(),
                     ),
@@ -648,7 +706,7 @@ class _FastShareHomeState extends State<FastShareHome>
 
     if (!mounted) return;
 
-    final ip = await Navigator.of(context).push<String>(
+    final ip = await Navigator.of(navigatorKey.currentContext!).push<String>(
       MaterialPageRoute(builder: (context) => const _QrScannerScreen()),
     );
     if (ip != null && ip.isNotEmpty && mounted) {
@@ -1217,7 +1275,7 @@ class _FastShareHomeState extends State<FastShareHome>
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        color: Theme.of(navigatorKey.currentContext!).colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white.withOpacity(0.05)),
         boxShadow: [
@@ -1364,7 +1422,9 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
   }
 
   void _showSnackBar(String m) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+    ScaffoldMessenger.of(
+      navigatorKey.currentContext!,
+    ).showSnackBar(SnackBar(content: Text(m)));
   }
 
   @override
@@ -1457,9 +1517,18 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                if (item.size > 0)
+                if (item.totalFiles > 1)
                   Text(
-                    '${(item.size / (1024 * 1024)).toStringAsFixed(2)} MB',
+                    '${item.totalFiles} files • ${_formatSize(item.size)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  )
+                else if (item.size > 0)
+                  Text(
+                    _formatSize(item.size),
                     style: const TextStyle(color: Colors.white38, fontSize: 11),
                   ),
               ],

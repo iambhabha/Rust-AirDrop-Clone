@@ -156,22 +156,19 @@ fn DeviceCard(
     let dev = device.clone();
     rsx! {
         div {
-            style: "background-color: #0f3460; padding: 1rem; border-radius: 12px; border: 1px solid #4ECDC4; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.2);",
+            style: "background-color: #0f3460; padding: 1.2rem; border-radius: 16px; border: 1px solid rgba(78, 205, 196, 0.3); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 24px rgba(0,0,0,0.2); transition: transform 0.2s; cursor: default;",
             div {
                 div {
-                    style: "font-weight: bold; color: white; margin-bottom: 0.3rem; font-size: 1.1rem;",
+                    style: "font-weight: 800; color: white; margin-bottom: 0.4rem; font-size: 1.15rem;",
                     "📱 {device.device_name}"
-                    span { style: "color: #4ECDC4; font-weight: normal; font-size: 0.85rem; margin-left: 0.5rem;", "({device.device_type})" }
+                    span { style: "color: #4ECDC4; font-weight: normal; font-size: 0.85rem; margin-left: 0.6rem; background: rgba(78, 205, 196, 0.1); padding: 2px 8px; border-radius: 12px;", "{device.device_type}" }
                 }
-                div { style: "font-size: 0.9rem; color: #a9b5c9;",
+                div { style: "font-size: 0.95rem; color: #a9b5c9; opacity: 0.8;",
                     "IP: {device.ip_address}:{device.port}"
-                }
-                div { style: "font-size: 0.8rem; color: #888; margin-top: 0.3rem; font-family: monospace;",
-                    "ID: {device.device_id}"
                 }
             }
             button {
-                style: "padding: 0.6rem 1.2rem; font-size: 0.95rem; font-weight: bold; border-radius: 8px; background-color: #4ECDC4; color: #1a1a2e; border: none; cursor: pointer; white-space: nowrap; transition: transform 0.2s;",
+                style: "padding: 0.7rem 1.4rem; font-size: 0.95rem; font-weight: 900; border-radius: 12px; background-color: #4ECDC4; color: #1a1a2e; border: none; cursor: pointer; white-space: nowrap; transition: all 0.2s; box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);",
                 onclick: move |_| {
                     let mut sel_files = selected_files;
                     let mut show_send = send_screen;
@@ -189,7 +186,7 @@ fn DeviceCard(
                         }
                     });
                 },
-                "📤 Send Files"
+                "📤 SEND"
             }
         }
     }
@@ -265,17 +262,18 @@ pub fn app() -> Element {
             .ok()
             .and_then(|g| g.clone())
     });
-    let (pending_file_id, pending_from, pending_fname, pending_total_files) = pending
-        .as_ref()
-        .map(|p| (p.0.clone(), format!("{}", p.1), p.2.clone(), p.3))
-        .unwrap_or((String::new(), String::new(), String::new(), 1));
+    let (pending_file_id, pending_from, pending_fname, pending_total_files, pending_total_size) =
+        pending
+            .as_ref()
+            .map(|p| (p.0.clone(), format!("{}", p.1), p.2.clone(), p.3, p.4))
+            .unwrap_or((String::new(), String::new(), String::new(), 1, 0));
     let show_incoming = pending.is_some();
     let pending_id_accept = pending_file_id.clone();
     let pending_id_decline = pending_file_id.clone();
 
     rsx! {
         div {
-            style: "display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; background-color: #1a1a2e; color: white; font-family: 'Inter', system-ui, sans-serif; padding: 2rem;",
+            style: "display: flex; flex-direction: column; align-items: center; min-height: 100vh; background-color: #1a1a2e; color: white; font-family: 'Inter', system-ui, sans-serif; padding: 2rem; overflow-x: hidden;",
 
             // Header
             h1 {
@@ -372,9 +370,9 @@ pub fn app() -> Element {
             } else {
                 // ── Home ──
                 div {
-                    style: "display: flex; gap: 2rem; margin-top: 1rem;",
+                    style: "display: flex; gap: 2rem; margin-top: 0;",
                     button {
-                        style: "padding: 1.25rem 3.5rem; font-size: 1.3rem; font-weight: 800; border-radius: 16px; background-color: #4ECDC4; color: #1a1a2e; border: none; cursor: pointer; box-shadow: 0 10px 30px rgba(78, 205, 196, 0.4); transition: transform 0.2s, box-shadow 0.2s;",
+                        style: "padding: 1.25rem 3.5rem; font-size: 1.4rem; font-weight: 900; border-radius: 20px; background-color: #4ECDC4; color: #1a1a2e; border: none; cursor: pointer; box-shadow: 0 10px 40px rgba(78, 205, 196, 0.4); transition: all 0.2s;",
                         onclick: move |_| {
                             let mut sel_files = selected_files;
                             let mut show_send = send_screen;
@@ -396,28 +394,73 @@ pub fn app() -> Element {
 
             // ── IP & QR ──
             div {
-                style: "margin-top: 3rem; background: rgba(15, 52, 96, 0.6); backdrop-filter: blur(12px); padding: 2rem; border-radius: 24px; width: 100%; max-width: 650px; border: 1px solid rgba(78, 205, 196, 0.2); box-shadow: 0 8px 32px rgba(0,0,0,0.3);",
+                style: "margin-top: 3rem; background: rgba(15, 52, 96, 0.6); backdrop-filter: blur(12px); padding: 2.2rem; border-radius: 28px; width: 100%; max-width: 650px; border: 1px solid rgba(78, 205, 196, 0.25); box-shadow: 0 12px 48px rgba(0,0,0,0.4);",
                 div {
-                    style: "display: flex; align-items: center; gap: 2.5rem; flex-wrap: wrap; justify-content: center;",
+                    style: "display: flex; align-items: center; gap: 3rem; flex-wrap: wrap; justify-content: center;",
                     div {
-                        style: "background: white; padding: 12px; border-radius: 16px; box-shadow: 0 0 25px rgba(255,255,255,0.15);",
+                        style: "background: white; padding: 14px; border-radius: 20px; box-shadow: 0 0 35px rgba(255,255,255,0.15);",
                         img {
-                            style: "width: 160px; height: 160px; display: block;",
+                            style: "width: 170px; height: 170px; display: block;",
                             src: "{qr_data_url(&local_ip.to_string())}",
                             alt: "QR Code",
                         }
                     }
                     div {
-                        style: "flex: 1; min-width: 250px; text-align: left;",
-                        h3 { style: "color: #4ECDC4; margin: 0 0 0.5rem; font-size: 1.4rem;", "Recieve Files" }
-                        p { style: "color: #a9b5c9; font-size: 1rem; margin: 0;", "Device IP Address:" }
+                        style: "flex: 1; min-width: 280px; text-align: left;",
+                        h3 { style: "color: #4ECDC4; margin: 0 0 0.6rem; font-size: 1.5rem; font-weight: 800;", "Receive Files" }
+                        p { style: "color: #a9b5c9; font-size: 1rem; margin: 0; font-weight: 500;", "Your Device IP Address:" }
                         p {
-                            style: "color: white; font-size: 2rem; font-weight: 900; margin: 0.4rem 0; font-family: 'JetBrains Mono', monospace; letter-spacing: 1px; text-shadow: 0 0 15px rgba(78, 205, 196, 0.4);",
+                            style: "color: white; font-size: 2.2rem; font-weight: 900; margin: 0.5rem 0; font-family: 'JetBrains Mono', monospace; letter-spacing: 1px; text-shadow: 0 0 20px rgba(78, 205, 196, 0.5);",
                             "{local_ip}"
                         }
                         p {
-                            style: "color: #888; font-size: 0.9rem; margin-top: 0.8rem; line-height: 1.5; font-style: italic;",
+                            style: "color: #888; font-size: 0.95rem; margin-top: 1rem; line-height: 1.6; font-style: italic;",
                             "Scan QR with FastShare Mobile or enter IP to connect instantly."
+                        }
+                    }
+                }
+            }
+
+            // ── Nearby Devices (Always Visible on Home) ──
+            if !send_screen() {
+                div {
+                    style: "margin-top: 3.5rem; width: 100%; max-width: 650px;",
+                    div {
+                        style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;",
+                        h3 { style: "color: #4ECDC4; margin: 0; font-size: 1.6rem; font-weight: 800; display: flex; align-items: center; gap: 0.8rem;",
+                            "📱 Nearby Devices"
+                            if !devices.is_empty() {
+                                span { style: "font-size: 0.8rem; background: #4ECDC4; color: #1a1a2e; padding: 2px 10px; border-radius: 12px; font-weight: 900;", "{devices.len()} ONLINE" }
+                            }
+                        }
+                        button {
+                            style: "background: rgba(78, 205, 196, 0.1); border: 1px solid rgba(78, 205, 196, 0.3); color: #4ECDC4; padding: 0.4rem 1rem; border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: bold; transition: all 0.2s;",
+                            onclick: move |_| {
+                                gui_bridge::trigger_scan();
+                                status_message.set(Some("Scanning for devices...".into()));
+                            },
+                            "🔄 Rescan"
+                        }
+                    }
+
+                    if devices.is_empty() {
+                        div {
+                            style: "background: rgba(15, 52, 96, 0.3); padding: 3rem; border-radius: 20px; text-align: center; border: 1px dashed rgba(78, 205, 196, 0.3);",
+                            div { style: "font-size: 2.5rem; margin-bottom: 1rem; animation: pulse 2s infinite;", "🔍" }
+                            p { style: "color: #a9b5c9; font-size: 1.1rem; margin: 0; font-weight: 500;", "Searching for nearby devices..." }
+                            p { style: "color: #666; font-size: 0.9rem; margin-top: 0.5rem;", "Make sure FastShare is open on other devices." }
+                        }
+                    } else {
+                        div {
+                            style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;",
+                            for dinfo in &devices {
+                                DeviceCard {
+                                    device: dinfo.clone(),
+                                    selected_device: selected_device,
+                                    selected_files: selected_files,
+                                    send_screen: send_screen,
+                                }
+                            }
                         }
                     }
                 }
@@ -480,56 +523,34 @@ pub fn app() -> Element {
                 }
             }
 
-            // ── Nearby Devices ──
-            if devices.len() > 0 && !send_screen() {
-                div {
-                    style: "margin-top: 2.5rem; width: 100%; max-width: 650px;",
-                    h3 { style: "color: #4ECDC4; margin-bottom: 1.2rem; font-size: 1.5rem;", "📱 Nearby Devices" }
-                    div {
-                        style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.2rem;",
-                        for dinfo in &devices {
-                            DeviceCard {
-                                device: dinfo.clone(),
-                                selected_device: selected_device,
-                                selected_files: selected_files,
-                                send_screen: send_screen,
-                            }
-                        }
-                    }
-                }
-            }
-
             // ── Transfer History ──
             div {
-                style: "margin-top: 3rem; background: rgba(15, 52, 96, 0.4); backdrop-filter: blur(10px); padding: 2rem; border-radius: 24px; width: 100%; max-width: 650px; box-shadow: 0 15px 45px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05);",
+                style: "margin-top: 3rem; background: rgba(15, 52, 96, 0.4); backdrop-filter: blur(10px); padding: 2.2rem; border-radius: 28px; width: 100%; max-width: 650px; box-shadow: 0 18px 56px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05);",
                 div {
-                    style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.8rem;",
-                    h3 { style: "margin: 0; font-size: 1.6rem; font-weight: 800;", "📋 Transfer History" }
+                    style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;",
+                    h3 { style: "margin: 0; font-size: 1.7rem; font-weight: 900;", "📋 Transfer History" }
                     div {
-                        style: "display: flex; background: #0f3460; border-radius: 12px; padding: 0.3rem; box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);",
+                        style: "display: flex; background: #0f3460; border-radius: 14px; padding: 0.4rem; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);",
                         for tab in ["All", "Received", "Sent"] {
-                            {
-                                let is_active = history_tab() == tab;
-                                let bg = if is_active { "#4ECDC4" } else { "transparent" };
-                                let fg = if is_active { "#1a1a2e" } else { "#a9b5c9" };
-                                rsx! {
-                                    button {
-                                        key: "{tab}",
-                                        style: "padding: 0.5rem 1.2rem; border-radius: 10px; border: none; font-size: 0.9rem; font-weight: bold; cursor: pointer; transition: all 0.25s; background: {bg}; color: {fg};",
-                                        onclick: move |_| history_tab.set(tab),
-                                        "{tab}"
-                                    }
-                                }
+                            button {
+                                key: "{tab}",
+                                style: if history_tab() == tab {
+                                    "padding: 0.6rem 1.4rem; border-radius: 11px; border: none; font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.25s; background: #4ECDC4; color: #1a1a2e; box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);"
+                                } else {
+                                    "padding: 0.6rem 1.4rem; border-radius: 11px; border: none; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.25s; background: transparent; color: #a9b5c9;"
+                                },
+                                onclick: move |_| history_tab.set(tab),
+                                "{tab}"
                             }
                         }
                     }
                 }
 
                 div {
-                    style: "display: flex; flex-direction: column; gap: 1rem; max-height: 450px; overflow-y: auto; padding-right: 0.8rem;",
+                    style: "display: flex; flex-direction: column; gap: 1.1rem; max-height: 450px; overflow-y: auto; padding-right: 0.8rem;",
                     if filtered_history.is_empty() {
                         div {
-                            style: "text-align: center; padding: 3.5rem 1rem; color: #555; background: rgba(0,0,0,0.15); border-radius: 16px; border: 1px dashed rgba(255,255,255,0.05);",
+                            style: "text-align: center; padding: 3.5rem 1rem; color: #555; background: rgba(0,0,0,0.15); border-radius: 20px; border: 1px dashed rgba(255,255,255,0.05);",
                             p { style: "font-size: 1.2rem; margin: 0; font-style: italic;", "No transfers to show here yet." }
                         }
                     } else {
@@ -568,7 +589,14 @@ pub fn app() -> Element {
                             p { style: "color: #a9b5c9; margin: 0; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;", "First File" }
                             p { style: "color: white; margin: 0.4rem 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.1rem;", "{pending_fname}" }
                             if pending_total_files > 1 {
-                                div { style: "margin-top: 1rem; background: #4ECDC4; color: #1a1a2e; padding: 0.5rem 1rem; border-radius: 12px; font-weight: 900; font-size: 0.9rem; display: inline-block;", "+ {pending_total_files - 1} MORE FILES" }
+                                div { style: "margin-top: 1rem; background: #4ECDC4; color: #1a1a2e; padding: 0.5rem 1rem; border-radius: 12px; font-weight: 900; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;",
+                                    span { "+ {pending_total_files - 1} MORE" }
+                                    span { style: "opacity: 0.8; font-size: 0.8rem;", "{format_size(pending_total_size)}" }
+                                }
+                            } else {
+                                div { style: "margin-top: 0.5rem; text-align: right;",
+                                    span { style: "color: #a9b5c9; font-size: 0.85rem; font-weight: 600;", "{format_size(pending_total_size)}" }
+                                }
                             }
                         }
                         div {

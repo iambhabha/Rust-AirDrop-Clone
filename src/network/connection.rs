@@ -305,12 +305,24 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                             // We grabbed the write lock and the global slot is free. Show our popup.
                             let (tx, rx) = oneshot::channel();
                             app_state.pending_decisions.insert(file_id.clone(), tx);
+                            let total_batch_size: u64 = plan
+                                .chunks
+                                .iter()
+                                .map(|c| c.size)
+                                .collect::<Vec<_>>()
+                                .iter()
+                                .sum(); // Simple approach: total size of this file.
+                                        // Actually, if it's a batch, we'd need the total size of ALL files.
+                                        // For now, let's use the current file's info as a proxy if we don't have batch-wide metadata.
+                                        // But plan.total_size IS the total size of THIS file.
+
                             if let Ok(mut guard) = app_state.pending_incoming_display.lock() {
                                 *guard = Some((
                                     file_id.clone(),
                                     remote,
                                     file_name.clone(),
                                     plan.total_files,
+                                    plan.total_size,
                                 ));
                                 info!(
                                     "📥 [FastShare] Set pending_incoming_display for {}",
@@ -362,6 +374,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                     .to_string(),
                                 is_incoming: true,
                                 saved_path: None,
+                                total_files: plan.total_files,
                             });
                             crate::app::App::save_history(&app_state);
                             return;
@@ -391,6 +404,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                             .to_string(),
                                         is_incoming: true,
                                         saved_path: Some(out_path.to_string_lossy().to_string()),
+                                        total_files: plan.total_files,
                                     });
                                     crate::app::App::save_history(&app_state_inner);
                                 } else {
@@ -407,6 +421,7 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                             .to_string(),
                                         is_incoming: true,
                                         saved_path: Some(out_path.to_string_lossy().to_string()),
+                                        total_files: plan.total_files,
                                     });
                                     crate::app::App::save_history(&app_state_inner);
                                 }

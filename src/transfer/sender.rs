@@ -233,7 +233,7 @@ impl TransferSender {
                         total_files: total_files_count,
                         throughput_bps: 0,
                         eta_seconds: eta,
-                        complete: false,
+                        complete: cs >= plan_total_chunks,
                     });
                     if cs >= plan_total_chunks {
                         break;

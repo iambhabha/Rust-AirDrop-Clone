@@ -167,11 +167,12 @@ async fn do_send_files(
                 let mut history = state.transfer_history.lock().unwrap();
                 history.push(fastshare::app::TransferHistoryItem {
                     file_name: path.clone(),
-                    size: 0, // Should ideally get from plan
+                    size: 0,
                     status: "Success".into(),
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     is_incoming: false,
                     saved_path: Some(path.clone()),
+                    total_files: total,
                 });
                 fastshare::app::App::save_history(&state);
             }
@@ -189,6 +190,7 @@ async fn do_send_files(
                     timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                     is_incoming: false,
                     saved_path: Some(path.clone()),
+                    total_files: total,
                 });
                 fastshare::app::App::save_history(&state);
                 return err_msg;
@@ -201,11 +203,15 @@ async fn do_send_files(
     )
 }
 
-/// Open a file or directory in the system explorer
-pub fn open_file_in_explorer(path: String) {
-    #[cfg(not(target_os = "android"))]
-    {
-        let _ = opener::open(std::path::Path::new(&path));
+/// Open a file or folder using the system default handler
+pub fn open_file_in_explorer(path: String) -> String {
+    let p = std::path::Path::new(&path);
+    if !p.exists() {
+        return format!("Error: Path does not exist: {}", path);
+    }
+    match opener::open(p) {
+        Ok(_) => "Success".into(),
+        Err(e) => format!("Error opening file: {}", e),
     }
 }
 
@@ -248,10 +254,13 @@ pub fn get_pending_incoming() -> String {
     let state_opt = GLOBAL_APP_STATE.lock().unwrap().clone();
     if let Some(state) = state_opt {
         if let Ok(guard) = state.pending_incoming_display.lock() {
-            if let Some((ref file_id, ref from_addr, ref file_name, total_files)) = *guard {
+            if let Some((ref file_id, ref from_addr, ref file_name, total_files, total_size)) =
+                *guard
+            {
                 tracing::info!(
-                    "📥 [FastShare] Pending incoming: file={} from={} ({} files)",
+                    "📥 [FastShare] Pending incoming: file={} size={} from={} ({} files)",
                     file_name,
+                    total_size,
                     from_addr,
                     total_files
                 );
@@ -260,6 +269,7 @@ pub fn get_pending_incoming() -> String {
                     "from_addr": format!("{}", from_addr),
                     "file_name": file_name,
                     "total_files": total_files,
+                    "total_size": total_size,
                 });
                 return obj.to_string();
             }

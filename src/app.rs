@@ -42,14 +42,17 @@ pub struct AppState {
     /// Registry for pending transfer Accept/Decline: file_id -> oneshot sender. Backend waits on receiver; GUI sends via this.
     pub pending_decisions: Arc<DashMap<String, oneshot::Sender<bool>>>,
     /// Current incoming transfer to show in UI: (file_id, from_addr, file_name). GUI reads this and responds via pending_decisions.
-    /// Current incoming transfer to show in UI: (file_id, from_addr, file_name, total_files).
-    pub pending_incoming_display: Arc<std::sync::Mutex<Option<(String, SocketAddr, String, u32)>>>,
+    /// Current incoming transfer to show in UI: (file_id, from_addr, file_name, total_files, total_size).
+    pub pending_incoming_display:
+        Arc<std::sync::Mutex<Option<(String, SocketAddr, String, u32, u64)>>>,
     /// Current outgoing transfer progress for UI (file list, size, progress bar).
     pub transfer_progress: Arc<std::sync::Mutex<Option<crate::transfer::sender::TransferProgress>>>,
     /// Receiver for management of incoming transfers
     pub transfer_receiver: Arc<TransferReceiver>,
     /// History of completed transfers: (file_name, size, result, timestamp, is_incoming)
     pub transfer_history: Arc<std::sync::Mutex<Vec<TransferHistoryItem>>>,
+    /// Discovery service handle for triggering scans
+    pub discovery: Arc<tokio::sync::OnceCell<crate::network::discovery::DiscoveryService>>,
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -60,6 +63,7 @@ pub struct TransferHistoryItem {
     pub timestamp: String,
     pub is_incoming: bool,
     pub saved_path: Option<String>,
+    pub total_files: u32,
 }
 
 /// Top-level application that ties all subsystems together.
@@ -127,7 +131,10 @@ impl App {
             transfer_progress: Arc::new(std::sync::Mutex::new(None)),
             transfer_receiver,
             transfer_history: Arc::new(std::sync::Mutex::new(history)),
+            discovery: Arc::new(tokio::sync::OnceCell::new()),
         });
+
+        let _ = state.discovery.set(discovery.clone());
 
         Ok(Self {
             state,
@@ -299,6 +306,7 @@ pub async fn run_send_loop(
                             timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                             is_incoming: false,
                             saved_path: Some(file_path.to_string_lossy().to_string()),
+                            total_files: 1,
                         });
                         App::save_history(&state);
                     } else {
@@ -311,6 +319,7 @@ pub async fn run_send_loop(
                             timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
                             is_incoming: false,
                             saved_path: Some(file_path.to_string_lossy().to_string()),
+                            total_files: 1, // run_send_loop handles one file at a time from the channel
                         });
                         App::save_history(&state);
                     }

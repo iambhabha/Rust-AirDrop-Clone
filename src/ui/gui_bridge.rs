@@ -135,3 +135,15 @@ pub fn respond_incoming(file_id: &str, accept: bool) {
         }
     }
 }
+
+/// Trigger an active discovery scan.
+pub fn trigger_scan() {
+    if let Some(b) = BRIDGE.get() {
+        let state = b.state.clone();
+        tokio::spawn(async move {
+            if let Some(discovery) = state.discovery.get() {
+                let _ = discovery.trigger_scan().await;
+            }
+        });
+    }
+}
