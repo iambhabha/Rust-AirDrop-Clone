@@ -84,6 +84,8 @@ pub struct FileChunkPlan {
     pub file_name: String,
     /// Total file size
     pub total_size: u64,
+    /// Total number of files in this transfer session
+    pub total_files: u32,
     /// Chunk size used for splitting
     pub chunk_size: u64,
     /// Total number of chunks
@@ -119,7 +121,7 @@ impl FileChunker {
     /// Returns a `FileChunkPlan` with metadata for each chunk.
     /// The actual chunk data is read on-demand during transfer
     /// to avoid loading large files into memory.
-    pub async fn plan_file(&self, path: &Path) -> Result<FileChunkPlan> {
+    pub async fn plan_file(&self, path: &Path, total_files: u32) -> Result<FileChunkPlan> {
         let metadata = tokio::fs::metadata(path)
             .await
             .context("Failed to read file metadata")?;
@@ -159,6 +161,7 @@ impl FileChunker {
             file_id,
             file_name,
             total_size,
+            total_files,
             chunk_size: self.chunk_size,
             total_chunks,
             chunks,

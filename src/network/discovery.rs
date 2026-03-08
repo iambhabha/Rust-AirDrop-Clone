@@ -16,13 +16,13 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
+use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo, TxtProperty};
 use serde::{Deserialize, Serialize};
 use tokio::net::UdpSocket;
-use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info, trace, warn};
 
 use crate::app::AppState;
 use crate::network::broadcast::BroadcastEngine;
@@ -50,7 +50,7 @@ const DEVICE_STALE_SECS: u64 = 10;
 // ── Data Structures ──
 
 /// Metadata about a discovered device on the network.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DeviceInfo {
     /// Unique device identifier (UUID v4)
     pub device_id: String,
@@ -96,6 +96,8 @@ pub struct DiscoveryService {
     discovered_devices: Arc<DashMap<String, DeviceInfo>>,
     /// Broadcast engine for UDP announcements
     broadcast_engine: Arc<BroadcastEngine>,
+    /// mDNS Service Daemon
+    mdns: ServiceDaemon,
 }
 
 impl DiscoveryService {
@@ -106,8 +108,14 @@ impl DiscoveryService {
     /// * `device_name` — Human-readable name
     /// * `port` — QUIC server port to advertise
     pub fn new(device_id: String, device_name: String, port: u16) -> Result<Self> {
-        let local_ip =
-            local_ip_address::local_ip().unwrap_or(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+        let local_ip = local_ip_address::list_afinet_netifas()
+            .ok()
+            .and_then(|ifs| {
+                ifs.into_iter()
+                    .find(|(_, ip)| !ip.is_loopback() && ip.is_ipv4())
+                    .map(|(_, ip)| ip)
+            })
+            .unwrap_or(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
 
         let device_info = DeviceInfo {
             device_id,
@@ -119,6 +127,7 @@ impl DiscoveryService {
                 "compression_zstd".into(),
                 "distributed_transfer".into(),
                 "transfer_resume".into(),
+                "mdns_discovery".into(),
             ],
             max_bandwidth: detect_max_bandwidth(),
             ip_address: local_ip,
@@ -127,33 +136,53 @@ impl DiscoveryService {
             last_seen: None,
         };
 
+        info!(
+            "🚀 [FastShare] Discovery Service initialized. Listening on: {}:{}, Device: {}",
+            local_ip, port, device_info.device_name
+        );
         let broadcast_engine = Arc::new(BroadcastEngine::new(BROADCAST_PORT)?);
+        let mdns = ServiceDaemon::new().expect("Failed to create mDNS daemon");
 
         Ok(Self {
             device_info,
             discovered_devices: Arc::new(DashMap::new()),
             broadcast_engine,
+            mdns,
         })
     }
 
-    /// Run the discovery service. This spawns three concurrent tasks:
+    /// Run the discovery service. This spawns several concurrent tasks:
     ///
-    /// 1. **Announcer** — Periodically broadcasts our device info
-    /// 2. **Listener** — Listens for discovery packets from other devices
-    /// 3. **Pruner** — Removes stale devices that haven't been seen recently
+    /// 1. **Announcer** — Periodically broadcasts our device info (UDP/Multicast)
+    /// 2. **mDNS Announcer** — Registers our service via mDNS
+    /// 3. **mDNS Browser** — Browses for other mDNS services
+    /// 4. **Listener** — Listens for discovery packets from other devices
+    /// 5. **Pruner** — Removes stale devices that haven't been seen recently
     pub async fn run(&self, state: Arc<AppState>) -> Result<()> {
-        info!("Starting multi-protocol discovery system...");
+        info!("Starting multi-protocol discovery system (mDNS + UDP + Multicast)...");
 
         let service = self.clone();
         let state_clone = state.clone();
 
-        // ── Spawn UDP Broadcast Announcer ──
+        // ── 1. Spawn UDP/Multicast Announcer ──
         let announcer_service = service.clone();
         let announce_handle = tokio::spawn(async move {
             announcer_service.announce_loop().await;
         });
 
-        // ── Spawn UDP Broadcast Listener ──
+        // ── 2. Register mDNS Service ──
+        self.register_mdns_service()?;
+
+        // ── 3. Start mDNS Browser ──
+        let browser_service = service.clone();
+        let browser_state = state_clone.clone();
+        let browser_handle = tokio::spawn(async move {
+            if let Err(e) = browser_service.mdns_browse_loop(browser_state).await {
+                warn!("mDNS browser error: {}", e);
+            }
+        });
+
+        // ── 4. Spawn UDP Broadcast Listener ──
         let listener_service = service.clone();
         let listener_state = state_clone.clone();
         let listener_handle = tokio::spawn(async move {
@@ -162,7 +191,7 @@ impl DiscoveryService {
             }
         });
 
-        // ── Spawn Multicast Listener ──
+        // ── 5. Spawn Multicast Listener ──
         let multicast_service = service.clone();
         let multicast_state = state_clone.clone();
         let multicast_handle = tokio::spawn(async move {
@@ -171,21 +200,178 @@ impl DiscoveryService {
             }
         });
 
-        // ── Spawn Stale Device Pruner ──
+        // ── 6. Spawn Stale Device Pruner ──
         let pruner_service = service.clone();
         let pruner_state = state_clone.clone();
         let pruner_handle = tokio::spawn(async move {
             pruner_service.prune_stale_devices(pruner_state).await;
         });
 
-        // Wait for all tasks (they run forever until cancelled)
+        // Wait for all tasks
         tokio::select! {
             _ = announce_handle => {},
+            _ = browser_handle => {},
             _ = listener_handle => {},
             _ = multicast_handle => {},
             _ = pruner_handle => {},
         }
 
+        Ok(())
+    }
+
+    /// Register our own service via mDNS.
+    fn register_mdns_service(&self) -> Result<()> {
+        let service_type = MDNS_SERVICE_TYPE;
+        let instance_name = &self.device_info.device_id;
+        let port = self.device_info.port;
+        let my_ip = match self.device_info.ip_address {
+            IpAddr::V4(v4) => v4.to_string(),
+            IpAddr::V6(v6) => v6.to_string(),
+        };
+
+        // Properties (TXT records)
+        let mut properties = HashMap::new();
+        properties.insert("device_id".to_string(), self.device_info.device_id.clone());
+        properties.insert(
+            "device_name".to_string(),
+            self.device_info.device_name.clone(),
+        );
+        properties.insert(
+            "device_type".to_string(),
+            self.device_info.device_type.clone(),
+        );
+        properties.insert("ip".to_string(), my_ip);
+        properties.insert("protocol_version".to_string(), "1".to_string());
+
+        let service_info = ServiceInfo::new(
+            service_type,
+            instance_name,
+            &format!("{}.local.", instance_name),
+            "", // host_addr (empty for dynamic)
+            port,
+            Some(properties),
+        )
+        .map_err(|e| anyhow!("mDNS Registration Error: {}", e))?;
+
+        self.mdns
+            .register(service_info)
+            .map_err(|e| anyhow!("mDNS Register call failed: {}", e))?;
+
+        info!(
+            "mDNS Service registered: {} on port {}",
+            instance_name, port
+        );
+        Ok(())
+    }
+
+    /// Listen for mDNS service events and update device list.
+    async fn mdns_browse_loop(&self, state: Arc<AppState>) -> Result<()> {
+        let service_type = MDNS_SERVICE_TYPE;
+        let receiver = self
+            .mdns
+            .browse(service_type)
+            .map_err(|e| anyhow!("mDNS Browse failed: {}", e))?;
+
+        info!("mDNS browser active for {}", service_type);
+
+        while let Ok(event) = receiver.recv_async().await {
+            match event {
+                ServiceEvent::ServiceResolved(info) => {
+                    let props = info.get_properties();
+                    let device_id = props.get("device_id").map(|v| v.to_string());
+                    let device_name = props.get("device_name").map(|v| v.to_string());
+
+                    if let (Some(id), Some(name)) = (device_id, device_name) {
+                        // Skip ourselves
+                        if id == self.device_info.device_id {
+                            continue;
+                        }
+
+                        let ip_str = props.get("ip").map(|v| v.to_string()).unwrap_or_else(|| {
+                            info.get_addresses()
+                                .iter()
+                                .find(|ip| !ip.is_loopback())
+                                .map(|ip| ip.to_string())
+                                .unwrap_or_else(|| {
+                                    info.get_addresses()
+                                        .iter()
+                                        .next()
+                                        .map(|ip| ip.to_string())
+                                        .unwrap_or_default()
+                                })
+                        });
+
+                        let mut ip: IpAddr = ip_str
+                            .parse()
+                            .unwrap_or(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+
+                        // If mDNS reported loopback, try to use the first non-loopback address from mDNS info
+                        if ip.is_loopback() {
+                            if let Some(real_ip) =
+                                info.get_addresses().iter().find(|ip| !ip.is_loopback())
+                            {
+                                ip = *real_ip;
+                            }
+                        }
+                        let dev_type = props
+                            .get("device_type")
+                            .map(|v| v.to_string())
+                            .unwrap_or_else(|| "unknown".to_string());
+
+                        let protocol_version = props
+                            .get("protocol_version")
+                            .and_then(|v| v.to_string().parse::<u32>().ok())
+                            .unwrap_or(1);
+
+                        let device = DeviceInfo {
+                            device_id: id.clone(),
+                            device_name: name.clone(),
+                            device_type: dev_type,
+                            supported_features: vec!["mdns".into()],
+                            max_bandwidth: "1Gb".into(),
+                            ip_address: ip,
+                            port: info.get_port(),
+                            protocol_version,
+                            last_seen: Some(Instant::now()),
+                        };
+
+                        self.discovered_devices.insert(id.clone(), device);
+
+                        // Sync with shared state
+                        let devices: Vec<DeviceInfo> = self
+                            .discovered_devices
+                            .iter()
+                            .map(|e| e.value().clone())
+                            .collect();
+                        *state.nearby_devices.write().await = devices;
+
+                        info!("🔍 mDNS Discovered: {} ({}) at {}", name, id, ip);
+                    }
+                }
+                ServiceEvent::ServiceRemoved(_type, name) => {
+                    // Extract ID from instance name if needed, or wait for pruner
+                    debug!("mDNS Service removed: {}", name);
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Trigger an active discovery scan by sending a query packet to the network.
+    pub async fn trigger_scan(&self) -> Result<()> {
+        let packet = DiscoveryPacket {
+            packet_type: "query".into(),
+            device: self.device_info.clone(),
+            timestamp: Utc::now(),
+        };
+
+        if let Ok(data) = serde_json::to_vec(&packet) {
+            info!("Sending discovery query to LAN...");
+            let _ = self.broadcast_engine.broadcast(&data).await;
+            let _ = self.send_multicast(&data).await;
+        }
         Ok(())
     }
 
@@ -229,11 +415,17 @@ impl DiscoveryService {
             let (len, src) = socket.recv_from(&mut buf).await?;
 
             if let Ok(packet) = serde_json::from_slice::<DiscoveryPacket>(&buf[..len]) {
+                trace!("Received UDP broadcast from {}", src);
                 // Skip our own announcements
                 if packet.device.device_id == self.device_info.device_id {
                     continue;
                 }
 
+                trace!(
+                    "📡 Received UDP Announcement from {} ({})",
+                    packet.device.device_name,
+                    src
+                );
                 self.handle_discovery_packet(packet, src, &state).await;
             }
         }
@@ -286,6 +478,18 @@ impl DiscoveryService {
         source: SocketAddr,
         state: &Arc<AppState>,
     ) {
+        // Response to queries
+        if packet.packet_type == "query" && packet.device.device_id != self.device_info.device_id {
+            let response = DiscoveryPacket {
+                packet_type: "response".into(),
+                device: self.device_info.clone(),
+                timestamp: Utc::now(),
+            };
+            if let Ok(data) = serde_json::to_vec(&response) {
+                let _ = self.broadcast_engine.send_to(&data, source).await;
+            }
+        }
+
         let device_id = packet.device.device_id.clone();
         let mut device = packet.device;
         device.last_seen = Some(Instant::now());
@@ -314,6 +518,12 @@ impl DiscoveryService {
             info!(
                 "🔍 Discovered new device: {} ({}) at {}:{}",
                 device.device_name, device.device_type, device.ip_address, device.port
+            );
+        } else {
+            trace!(
+                "📡 Updated device: {} at {}",
+                device.device_name,
+                device.ip_address
             );
         }
     }

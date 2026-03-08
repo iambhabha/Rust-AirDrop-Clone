@@ -30,6 +30,7 @@ use tokio::sync::{mpsc, Semaphore};
 use tracing::{debug, error, info, warn};
 
 use crate::compression;
+use crate::network::handshake;
 use crate::transfer::chunker::{ChunkMeta, FileChunkPlan, FileChunker, NetworkSpeed};
 use crate::transfer::resume::TransferState;
 use crate::transfer::scheduler::StreamScheduler;
@@ -48,7 +49,7 @@ const MAX_PARALLEL_STREAMS: usize = 32;
 pub type ProgressCallback = Box<dyn Fn(TransferProgress) + Send + Sync>;
 
 /// Real-time transfer progress information.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct TransferProgress {
     /// File being transferred
     pub file_name: String,
@@ -62,6 +63,10 @@ pub struct TransferProgress {
     pub chunks_sent: u64,
     /// Total number of chunks
     pub total_chunks: u64,
+    /// Current file index (1-based) when sending multiple files
+    pub current_file_index: u32,
+    /// Total number of files in this transfer session
+    pub total_files: u32,
     /// Current throughput in bytes per second
     pub throughput_bps: u64,
     /// Estimated time remaining in seconds
@@ -125,6 +130,8 @@ impl TransferSender {
         connection: &Connection,
         file_path: &Path,
         network_speed: NetworkSpeed,
+        total_files: u32,
+        current_file_index: u32,
         resume_state: Option<&TransferState>,
         progress_cb: Option<ProgressCallback>,
     ) -> Result<()> {
@@ -133,7 +140,7 @@ impl TransferSender {
 
         // ── Plan Chunks ──
         let chunker = FileChunker::adaptive(network_speed);
-        let plan = chunker.plan_file(&file_path).await?;
+        let plan = chunker.plan_file(&file_path, total_files).await?;
 
         info!(
             "📤 Starting transfer: '{}' ({} bytes, {} chunks, {} streams)",
@@ -163,7 +170,7 @@ impl TransferSender {
         );
 
         // ── Send File Metadata on first stream ──
-        // The receiver needs to know about the file before chunks arrive
+        // The receiver expects file plan (0x01) on streams after the handshake
         let (mut meta_send, _meta_recv) = connection
             .open_bi()
             .await
@@ -180,6 +187,55 @@ impl TransferSender {
         let bytes_sent = Arc::new(AtomicU64::new(0));
         let chunks_sent = Arc::new(AtomicU64::new(0));
         let semaphore = Arc::new(Semaphore::new(self.parallel_streams));
+        let progress_cb_arc: Option<Arc<dyn Fn(TransferProgress) + Send + Sync>> =
+            progress_cb.map(|cb| {
+                Arc::new(move |p: TransferProgress| cb(p))
+                    as Arc<dyn Fn(TransferProgress) + Send + Sync>
+            });
+        let total_files_count = plan.total_files;
+
+        // Spawn progress update task
+        let progress_handle = if let Some(ref cb) = progress_cb_arc {
+            let bytes_sent_p = bytes_sent.clone();
+            let chunks_sent_p = chunks_sent.clone();
+            let cb_clone = cb.clone();
+            let plan_name = plan.file_name.clone();
+            let plan_id = plan.file_id.clone();
+            let plan_size = plan.total_size;
+            let plan_total_chunks = plan.total_chunks;
+            Some(tokio::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_millis(150));
+                loop {
+                    interval.tick().await;
+                    let bs = bytes_sent_p.load(Ordering::Relaxed);
+                    let cs = chunks_sent_p.load(Ordering::Relaxed);
+                    let eta = if cs > 0 && plan_total_chunks > 0 {
+                        let remaining = (plan_total_chunks - cs) as f64;
+                        remaining * 0.05
+                    } else {
+                        0.0
+                    };
+                    cb_clone(TransferProgress {
+                        file_name: plan_name.clone(),
+                        file_id: plan_id.clone(),
+                        total_bytes: plan_size,
+                        bytes_sent: bs,
+                        chunks_sent: cs,
+                        total_chunks: plan_total_chunks,
+                        current_file_index,
+                        total_files: total_files_count,
+                        throughput_bps: 0,
+                        eta_seconds: eta,
+                        complete: false,
+                    });
+                    if cs >= plan_total_chunks {
+                        break;
+                    }
+                }
+            }))
+        } else {
+            None
+        };
 
         let mut handles = Vec::new();
 
@@ -264,8 +320,13 @@ impl TransferSender {
             return Err(errors.remove(0));
         }
 
+        // Wait for progress task to finish
+        if let Some(h) = progress_handle {
+            let _ = h.await;
+        }
+
         // Fire completion progress callback
-        if let Some(ref cb) = progress_cb {
+        if let Some(ref cb) = progress_cb_arc {
             cb(TransferProgress {
                 file_name: plan.file_name,
                 file_id: plan.file_id,
@@ -273,6 +334,8 @@ impl TransferSender {
                 bytes_sent: total_sent,
                 chunks_sent: plan.total_chunks,
                 total_chunks: plan.total_chunks,
+                current_file_index,
+                total_files: plan.total_files,
                 throughput_bps: (throughput_mbps * 1024.0 * 1024.0) as u64,
                 eta_seconds: 0.0,
                 complete: true,

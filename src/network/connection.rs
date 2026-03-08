@@ -12,6 +12,7 @@
 //! with trust established through the discovery/pairing layer.
 
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
@@ -20,26 +21,26 @@ use quinn::{
     VarInt,
 };
 use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
-use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
+use tokio::sync::oneshot;
+
 use crate::app::AppState;
-use crate::network::handshake::{self, Capabilities};
-use crate::transfer::receiver::TransferReceiver;
+use crate::network::handshake;
+// use crate::transfer::receiver::TransferReceiver;
 
 // ── Constants ──
 
 /// Maximum concurrent bidirectional streams per connection.
-/// This directly controls parallel chunk transfer capacity.
 const MAX_CONCURRENT_BIDI_STREAMS: u32 = 64;
 
 /// Maximum concurrent unidirectional streams per connection.
 const MAX_CONCURRENT_UNI_STREAMS: u32 = 64;
 
-/// Initial window size in bytes (16 MB for high-throughput transfers).
+/// Initial window size in bytes (16 MB).
 const INITIAL_WINDOW: u32 = 16 * 1024 * 1024;
 
-/// Maximum window size in bytes (64 MB for ultra-fast networks).
+/// Maximum window size in bytes (64 MB).
 const MAX_WINDOW: u32 = 64 * 1024 * 1024;
 
 /// Maximum idle timeout in milliseconds.
@@ -50,28 +51,14 @@ const KEEP_ALIVE_INTERVAL_MS: u64 = 5_000;
 
 // ── QUIC Server ──
 
-/// The QUIC server that accepts incoming connections and handles
-/// file transfer streams.
 #[derive(Clone)]
 pub struct QuicServer {
-    /// The QUIC endpoint (both server and client capable)
     endpoint: Endpoint,
-    /// Server listening address
     listen_addr: SocketAddr,
 }
 
 impl QuicServer {
-    /// Create a new QUIC server with self-signed TLS certificates.
-    ///
-    /// # Arguments
-    /// * `addr` — Socket address to bind to (e.g., `0.0.0.0:5000`)
-    ///
-    /// # Certificate Generation
-    /// Generates a self-signed certificate using rcgen. In P2P mode,
-    /// trust is established through the discovery/pairing layer rather
-    /// than a certificate authority.
     pub async fn new(addr: SocketAddr) -> Result<Self> {
-        // ── Generate Self-Signed Certificate ──
         let cert_params = rcgen::CertificateParams::new(vec!["fastshare.local".into()])
             .context("Failed to create certificate params")?;
         let key_pair = rcgen::KeyPair::generate().context("Failed to generate key pair")?;
@@ -82,7 +69,6 @@ impl QuicServer {
         let cert_der = cert_key.der().clone();
         let key_der_bytes = key_pair.serialize_der();
 
-        // ── Configure Transport ──
         let mut transport = TransportConfig::default();
         transport
             .max_concurrent_bidi_streams(VarInt::from_u32(MAX_CONCURRENT_BIDI_STREAMS))
@@ -103,7 +89,6 @@ impl QuicServer {
 
         let transport = Arc::new(transport);
 
-        // ── Server Config ──
         let mut server_crypto = rustls::ServerConfig::builder()
             .with_no_client_auth()
             .with_single_cert(
@@ -119,7 +104,6 @@ impl QuicServer {
         ));
         server_config.transport_config(transport.clone());
 
-        // ── Create Endpoint ──
         let endpoint =
             Endpoint::server(server_config, addr).context("Failed to create QUIC endpoint")?;
 
@@ -131,13 +115,6 @@ impl QuicServer {
         })
     }
 
-    /// Main accept loop — listens for incoming QUIC connections
-    /// and spawns a handler task for each one.
-    ///
-    /// Each connection runs through:
-    /// 1. Accept the QUIC connection
-    /// 2. Perform capability handshake
-    /// 3. Handle incoming streams (file chunks, control messages)
     pub async fn accept_loop(&self, state: Arc<AppState>) -> Result<()> {
         info!(
             "QUIC server accepting connections on {}...",
@@ -167,43 +144,56 @@ impl QuicServer {
         Ok(())
     }
 
-    /// Get the QUIC endpoint for making outgoing connections.
     pub fn endpoint(&self) -> &Endpoint {
         &self.endpoint
     }
 
-    /// Connect to a remote peer at the given address.
-    ///
-    /// Uses a client configuration that trusts any certificate (suitable
-    /// for P2P where trust is established via pairing).
     pub async fn connect_to_peer(&self, addr: SocketAddr) -> Result<Connection> {
         let client_config = configure_client()?;
-
         let connection = self
             .endpoint
             .connect_with(client_config, addr, "fastshare.local")
             .context("Failed to initiate connection")?
             .await
             .context("Failed to establish connection")?;
-
         info!("📤 Connected to peer at {}", addr);
+        Ok(connection)
+    }
+
+    pub async fn connect_and_handshake(
+        &self,
+        addr: SocketAddr,
+        state: Arc<AppState>,
+    ) -> Result<Connection> {
+        let connection = self.connect_to_peer(addr).await?;
+
+        let (mut send, mut recv) = connection
+            .open_bi()
+            .await
+            .context("Failed to open handshake stream")?;
+
+        let mut ours = handshake::our_capabilities();
+        ours.device_id = state.device_id.clone();
+
+        handshake::send_handshake(&mut send, &ours).await?;
+        let theirs = handshake::receive_handshake(&mut recv).await?;
+
+        info!(
+            "🤝 Handshake complete with {} (protocol v{}, max_streams: {})",
+            addr, theirs.protocol_version, theirs.max_streams
+        );
+
+        let _ = send.finish();
 
         Ok(connection)
     }
 }
 
-/// Handle a single incoming QUIC connection.
-///
-/// This function:
-/// 1. Performs the capability handshake on the first stream
-/// 2. Accepts subsequent streams for file transfer
-/// 3. Routes chunks to the transfer receiver
 async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Result<()> {
     let remote = connection.remote_address();
     debug!("Handling connection from {}", remote);
 
     // ── Capability Handshake ──
-    // The first bidirectional stream is used for control messages
     let (mut send, mut recv) = connection
         .accept_bi()
         .await
@@ -219,18 +209,24 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
     );
 
     // ── Accept Transfer Streams ──
-    // Each subsequent bidirectional stream carries a file chunk or file plan
-    let receiver = TransferReceiver::new(state.chunk_storage.clone());
+    let receiver = state.transfer_receiver.clone();
+
+    // session_decision is a shared state for this connection:
+    // None = no decision yet, Some(true) = accepted, Some(false) = declined
+    let session_decision = Arc::new(tokio::sync::RwLock::new(None));
+    let decision_notify = Arc::new(tokio::sync::Notify::new());
 
     loop {
         match connection.accept_bi().await {
             Ok((send_stream, mut recv_stream)) => {
                 let receiver = receiver.clone();
                 let app_state = state.clone();
+                let session_decision = session_decision.clone();
+                let decision_notify = decision_notify.clone();
+
                 tokio::spawn(async move {
                     let mut type_buf = [0u8; 1];
-                    if let Err(e) = recv_stream.read_exact(&mut type_buf).await {
-                        warn!("Failed to read stream type: {}", e);
+                    if let Err(_) = recv_stream.read_exact(&mut type_buf).await {
                         return;
                     }
 
@@ -246,15 +242,125 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                             return;
                         }
                         let plan: crate::transfer::chunker::FileChunkPlan =
-                            serde_json::from_slice(&json_buf).unwrap();
-
-                        if let Err(e) = receiver.handle_file_plan(plan.clone()).await {
-                            error!("Failed to handle file plan: {}", e);
-                            return;
-                        }
+                            match serde_json::from_slice(&json_buf) {
+                                Ok(p) => p,
+                                Err(_) => return,
+                            };
 
                         let file_id = plan.file_id.clone();
                         let file_name = plan.file_name.clone();
+
+                        info!(
+                            "📥 [FastShare] Metadata received for '{}' (ID: {}, Chunks: {})",
+                            file_name, file_id, plan.total_chunks
+                        );
+
+                        if let Err(e) = receiver.handle_file_plan(plan.clone()).await {
+                            error!(
+                                "❌ [FastShare] Failed to handle file plan for {}: {}",
+                                file_name, e
+                            );
+                            return;
+                        }
+
+                        // Check if session is already decided or being decided.
+                        // Only the FIRST file in the batch sets pending_incoming_display and waits for user.
+                        // Other files in the same batch just wait for the decision.
+                        // Check if session is already decided or being decided.
+                        // Only the FIRST file in the batch sets pending_incoming_display and waits for user.
+                        // Other files in the same batch just wait for the decision.
+                        loop {
+                            let decision_val = session_decision.read().await;
+                            if decision_val.is_some() {
+                                break;
+                            }
+                            drop(decision_val);
+
+                            let already_pending = {
+                                if let Ok(guard) = app_state.pending_incoming_display.lock() {
+                                    guard.is_some()
+                                } else {
+                                    false
+                                }
+                            };
+
+                            if already_pending {
+                                // Someone else is showing a popup. Wait and try again.
+                                // We use a small sleep to avoid tight-looping, but naturally
+                                // it will break once our session is decided by a previous stream
+                                // OR when the other connection's popup clears.
+                                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                                continue;
+                            }
+
+                            let mut decision_guard = session_decision.write().await;
+                            if decision_guard.is_some() {
+                                break;
+                            } // Session decided while we waited
+
+                            // We grabbed the write lock and the global slot is free. Show our popup.
+                            let (tx, rx) = oneshot::channel();
+                            app_state.pending_decisions.insert(file_id.clone(), tx);
+                            if let Ok(mut guard) = app_state.pending_incoming_display.lock() {
+                                *guard = Some((
+                                    file_id.clone(),
+                                    remote,
+                                    file_name.clone(),
+                                    plan.total_files,
+                                ));
+                                info!(
+                                    "📥 [FastShare] Set pending_incoming_display for {}",
+                                    file_name
+                                );
+                            }
+
+                            info!(
+                                "📥 [FastShare] Incoming batch from {}: {} ({} files) — waiting for Accept/Decline",
+                                remote, file_name, plan.total_files
+                            );
+
+                            drop(decision_guard); // Allow other streams in our connection to see we are working
+
+                            let decision =
+                                match tokio::time::timeout(std::time::Duration::from_secs(120), rx)
+                                    .await
+                                {
+                                    Ok(Ok(true)) => true,
+                                    _ => false,
+                                };
+
+                            // Store decision and notify others in our connection
+                            let mut decision_guard = session_decision.write().await;
+                            *decision_guard = Some(decision);
+                            decision_notify.notify_waiters();
+
+                            app_state.pending_decisions.remove(&file_id);
+                            if let Ok(mut guard) = app_state.pending_incoming_display.lock() {
+                                *guard = None;
+                                info!("📥 [FastShare] Cleared pending_incoming_display for {} (Decision: {})", file_name, decision);
+                            }
+                            break;
+                        }
+
+                        // Just in case some stream arrived late after the decision was made but before notify_waiters
+                        let final_accepted = session_decision.read().await.unwrap_or(false);
+
+                        if !final_accepted {
+                            info!("Transfer declined for {}", file_name);
+                            // Add to history as declined
+                            let mut history = app_state.transfer_history.lock().unwrap();
+                            history.push(crate::app::TransferHistoryItem {
+                                file_name: file_name.clone(),
+                                size: plan.total_size,
+                                status: "Declined".into(),
+                                timestamp: chrono::Local::now()
+                                    .format("%Y-%m-%d %H:%M:%S")
+                                    .to_string(),
+                                is_incoming: true,
+                            });
+                            return;
+                        }
+
                         let rx = receiver.clone();
                         let app_state_inner = app_state.clone();
 
@@ -267,8 +373,32 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                                 let out_path = out_dir.join(&file_name);
                                 if let Err(e) = rx.reassemble_file(&file_id, &out_path).await {
                                     error!("Reassembly failed for {}: {}", file_id, e);
+                                    // Add to history as failed
+                                    let mut history =
+                                        app_state_inner.transfer_history.lock().unwrap();
+                                    history.push(crate::app::TransferHistoryItem {
+                                        file_name: file_name.clone(),
+                                        size: plan.total_size,
+                                        status: format!("Failed: {}", e),
+                                        timestamp: chrono::Local::now()
+                                            .format("%Y-%m-%d %H:%M:%S")
+                                            .to_string(),
+                                        is_incoming: true,
+                                    });
                                 } else {
                                     info!("File saved to {}", out_path.display());
+                                    // Add to history as success
+                                    let mut history =
+                                        app_state_inner.transfer_history.lock().unwrap();
+                                    history.push(crate::app::TransferHistoryItem {
+                                        file_name: file_name.clone(),
+                                        size: plan.total_size,
+                                        status: "Success".into(),
+                                        timestamp: chrono::Local::now()
+                                            .format("%Y-%m-%d %H:%M:%S")
+                                            .to_string(),
+                                        is_incoming: true,
+                                    });
                                 }
                             }
                         });
@@ -297,22 +427,18 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
     Ok(())
 }
 
-/// Create a client configuration that accepts any server certificate.
-///
-/// In a P2P system, trust is established through the pairing layer
-/// rather than certificate authorities. This mirrors how AirDrop works.
 fn configure_client() -> Result<ClientConfig> {
-    let crypto = rustls::ClientConfig::builder()
+    let mut crypto = rustls::ClientConfig::builder()
         .dangerous()
         .with_custom_certificate_verifier(Arc::new(SkipCertVerification))
         .with_no_client_auth();
+    crypto.alpn_protocols = vec![b"fastshare/1".to_vec()];
 
     let mut client_config = ClientConfig::new(Arc::new(
         quinn::crypto::rustls::QuicClientConfig::try_from(crypto)
             .context("Failed to create QUIC client config")?,
     ));
 
-    // ── Transport tuning for high throughput ──
     let mut transport = TransportConfig::default();
     transport
         .max_concurrent_bidi_streams(VarInt::from_u32(MAX_CONCURRENT_BIDI_STREAMS))
@@ -329,8 +455,6 @@ fn configure_client() -> Result<ClientConfig> {
     Ok(client_config)
 }
 
-/// Certificate verifier that accepts any certificate.
-/// Trust is established at the application layer through pairing.
 #[derive(Debug)]
 struct SkipCertVerification;
 

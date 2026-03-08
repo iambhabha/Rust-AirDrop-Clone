@@ -5,7 +5,9 @@
 //! frontend is integrated.
 
 pub mod devices;
+#[cfg(not(target_os = "android"))]
 pub mod gui;
+pub mod gui_bridge;
 pub mod history;
 pub mod home;
 pub mod receive;

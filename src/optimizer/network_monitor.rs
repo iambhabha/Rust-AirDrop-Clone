@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
-use tracing::{debug, info};
+use tracing::{info, trace};
 
 // ── Constants ──
 
@@ -259,7 +259,7 @@ impl NetworkMonitor {
         metrics.jitter_ms = jitter;
         metrics.timestamp = Instant::now();
 
-        debug!(
+        trace!(
             "📊 Network: {:.1} MB/s, {:.1}ms latency, {:.2}% loss",
             throughput as f64 / (1024.0 * 1024.0),
             avg_latency,

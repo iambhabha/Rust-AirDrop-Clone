@@ -4,9 +4,11 @@
 //! transfer engine, network optimizer, and the UI event loop.
 
 use anyhow::Result;
+use dashmap::DashMap;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::{broadcast, RwLock};
+use tokio::sync::{broadcast, mpsc, oneshot, RwLock};
 use tracing::info;
 use uuid::Uuid;
 
@@ -15,8 +17,9 @@ use crate::network::connection::QuicServer;
 use crate::network::discovery::{DeviceInfo, DiscoveryService};
 use crate::optimizer::network_monitor::NetworkMonitor;
 use crate::storage::chunk_storage::ChunkStorage;
+use crate::transfer::chunker::NetworkSpeed;
 use crate::transfer::receiver::TransferReceiver;
-use crate::transfer::sender::TransferSender;
+use crate::transfer::sender::{TransferProgress, TransferSender};
 
 /// Shared application state accessible across all subsystems.
 pub struct AppState {
@@ -36,6 +39,26 @@ pub struct AppState {
     pub chunk_storage: Arc<ChunkStorage>,
     /// Download path for received files
     pub download_path: String,
+    /// Registry for pending transfer Accept/Decline: file_id -> oneshot sender. Backend waits on receiver; GUI sends via this.
+    pub pending_decisions: Arc<DashMap<String, oneshot::Sender<bool>>>,
+    /// Current incoming transfer to show in UI: (file_id, from_addr, file_name). GUI reads this and responds via pending_decisions.
+    /// Current incoming transfer to show in UI: (file_id, from_addr, file_name, total_files).
+    pub pending_incoming_display: Arc<std::sync::Mutex<Option<(String, SocketAddr, String, u32)>>>,
+    /// Current outgoing transfer progress for UI (file list, size, progress bar).
+    pub transfer_progress: Arc<std::sync::Mutex<Option<crate::transfer::sender::TransferProgress>>>,
+    /// Receiver for management of incoming transfers
+    pub transfer_receiver: Arc<TransferReceiver>,
+    /// History of completed transfers: (file_name, size, result, timestamp, is_incoming)
+    pub transfer_history: Arc<std::sync::Mutex<Vec<TransferHistoryItem>>>,
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct TransferHistoryItem {
+    pub file_name: String,
+    pub size: u64,
+    pub status: String, // "Success", "Failed", "Declined"
+    pub timestamp: String,
+    pub is_incoming: bool,
 }
 
 /// Top-level application that ties all subsystems together.
@@ -82,6 +105,9 @@ impl App {
         // ── Initialize Chunk Storage ──
         let chunk_storage = Arc::new(ChunkStorage::with_path(std::path::PathBuf::from(temp_path)));
 
+        // ── Initialize Transfer Receiver ──
+        let transfer_receiver = Arc::new(TransferReceiver::new(chunk_storage.clone()));
+
         let (shutdown_tx, _) = broadcast::channel(1);
 
         let state = Arc::new(AppState {
@@ -93,6 +119,11 @@ impl App {
             peer_manager,
             chunk_storage,
             download_path,
+            pending_decisions: Arc::new(DashMap::new()),
+            pending_incoming_display: Arc::new(std::sync::Mutex::new(None)),
+            transfer_progress: Arc::new(std::sync::Mutex::new(None)),
+            transfer_receiver,
+            transfer_history: Arc::new(std::sync::Mutex::new(Vec::new())),
         });
 
         Ok(Self {
@@ -111,6 +142,11 @@ impl App {
     /// Returns the QUIC server listen address.
     pub fn listen_addr(&self) -> SocketAddr {
         self.state.listen_addr
+    }
+
+    /// Explicitly trigger a network scan for nearby devices.
+    pub async fn trigger_discovery_scan(&self) -> Result<()> {
+        self.discovery.trigger_scan().await
     }
 
     /// Run the application. Spawns all subsystems concurrently:
@@ -165,5 +201,100 @@ impl App {
         monitor_handle.abort();
 
         Ok(())
+    }
+}
+
+/// Max retries for connecting to peer (e.g. phone may need a moment to accept).
+const CONNECT_RETRIES: u32 = 3;
+/// Delay between retries.
+const CONNECT_RETRY_DELAY: std::time::Duration = std::time::Duration::from_secs(2);
+/// Connection attempt timeout.
+const CONNECT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// Runs a loop that receives send-file requests from the GUI and performs the transfer.
+/// Call this in the same runtime as `App::run` (e.g. spawn it before `app.run().await`).
+pub async fn run_send_loop(
+    mut send_rx: mpsc::Receiver<(PathBuf, SocketAddr)>,
+    quic_server: QuicServer,
+    state: Arc<AppState>,
+) {
+    let sender = TransferSender::new();
+    while let Some((file_path, peer_addr)) = send_rx.recv().await {
+        if !file_path.exists() {
+            tracing::error!("File not found: {}", file_path.display());
+            continue;
+        }
+        let mut last_err = None;
+        for attempt in 1..=CONNECT_RETRIES {
+            let connect_fut = quic_server.connect_and_handshake(peer_addr, state.clone());
+            match tokio::time::timeout(CONNECT_TIMEOUT, connect_fut).await {
+                Ok(Ok(connection)) => {
+                    let state_for_cb = state.clone();
+                    let progress_cb = Some(Box::new(move |p: TransferProgress| {
+                        if let Ok(mut guard) = state_for_cb.transfer_progress.lock() {
+                            *guard = Some(p);
+                        }
+                    })
+                        as Box<dyn Fn(TransferProgress) + Send + Sync>);
+                    if let Err(e) = sender
+                        .send_file(
+                            &connection,
+                            &file_path,
+                            NetworkSpeed::Normal,
+                            1,
+                            1,
+                            None,
+                            progress_cb,
+                        )
+                        .await
+                    {
+                        tracing::error!("Send file failed: {}", e);
+                    } else {
+                        info!("✅ File sent successfully: {}", file_path.display());
+                    }
+                    if let Ok(mut guard) = state.transfer_progress.lock() {
+                        *guard = None;
+                    }
+                    last_err = None;
+                    break;
+                }
+                Ok(Err(e)) => {
+                    last_err = Some(e);
+                    if attempt < CONNECT_RETRIES {
+                        tracing::warn!(
+                            "Connect to {} failed (attempt {}/{}), retrying in {:?}...",
+                            peer_addr,
+                            attempt,
+                            CONNECT_RETRIES,
+                            CONNECT_RETRY_DELAY
+                        );
+                        tokio::time::sleep(CONNECT_RETRY_DELAY).await;
+                    }
+                }
+                Err(_) => {
+                    last_err = Some(anyhow::anyhow!(
+                        "Connection timeout after {:?}",
+                        CONNECT_TIMEOUT
+                    ));
+                    if attempt < CONNECT_RETRIES {
+                        tracing::warn!(
+                            "Connect to {} timed out (attempt {}/{}), retrying...",
+                            peer_addr,
+                            attempt,
+                            CONNECT_RETRIES
+                        );
+                        tokio::time::sleep(CONNECT_RETRY_DELAY).await;
+                    }
+                }
+            }
+        }
+        if let Some(e) = last_err {
+            tracing::error!(
+                "Connect to {} failed after {} attempts: {}",
+                peer_addr,
+                CONNECT_RETRIES,
+                e
+            );
+        }
     }
 }

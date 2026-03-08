@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "FastShare App (Android)",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder}/fastshare_ui/lib/main.dart",
+            "cwd": "${workspaceFolder}/fastshare_ui"
+        },
+        {
+            "name": "FastShare App (Windows)",
+            "request": "launch",
+            "type": "dart",
+            "program": "${workspaceFolder}/fastshare_ui/lib/main.dart",
+            "args": [
+                "-d",
+                "windows"
+            ],
+            "cwd": "${workspaceFolder}/fastshare_ui"
+        }
+    ]
+}

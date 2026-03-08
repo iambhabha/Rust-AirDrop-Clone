@@ -6,22 +6,51 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `GLOBAL_APP_STATE`, `GLOBAL_SERVER`, `RUNTIME`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `deref`, `deref`, `initialize`, `initialize`, `initialize`
+// These functions are ignored because they are not marked as `pub`: `do_send_files`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `GLOBAL_APP_STATE`, `GLOBAL_DISCOVERY`, `GLOBAL_SERVER`, `GLOBAL_TRANSFER_PROGRESS`, `RUNTIME`, `TransferStatus`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `deref`, `deref`, `deref`, `deref`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`
 
 /// Start the background FastShare server and return some details
 Future<String> startFastshare() =>
     RustLib.instance.api.crateApiSimpleStartFastshare();
 
-/// Send a file to a target IP
-Future<String> sendFileToIp({
-  required String filePath,
+/// Send multiple files to a target IP
+Future<String> sendFilesToIp({
+  required List<String> filePaths,
   required String targetIp,
-}) => RustLib.instance.api.crateApiSimpleSendFileToIp(
-  filePath: filePath,
+}) => RustLib.instance.api.crateApiSimpleSendFilesToIp(
+  filePaths: filePaths,
   targetIp: targetIp,
 );
+
+/// Get transfer history as JSON
+Future<String> getTransferHistory() =>
+    RustLib.instance.api.crateApiSimpleGetTransferHistory();
+
+/// Trigger a network scan manually
+Future<void> triggerDiscoveryScan() =>
+    RustLib.instance.api.crateApiSimpleTriggerDiscoveryScan();
 
 /// Get a list of discovered nearby devices in JSON format
 Future<String> getNearbyDevices() =>
     RustLib.instance.api.crateApiSimpleGetNearbyDevices();
+
+/// Get pending incoming transfer for UI popup, or null JSON if none. Returns {"file_id","from_addr","file_name"} or "null".
+Future<String> getPendingIncoming() =>
+    RustLib.instance.api.crateApiSimpleGetPendingIncoming();
+
+/// Respond to incoming transfer (Accept = true, Decline = false). Call from Flutter when user taps Accept/Decline.
+Future<void> respondIncoming({required String fileId, required bool accept}) =>
+    RustLib.instance.api.crateApiSimpleRespondIncoming(
+      fileId: fileId,
+      accept: accept,
+    );
+
+/// Get progress of all active incoming transfers as JSON.
+/// Returns a list of {"file_name", "progress", "total_bytes", "received_bytes"}
+Future<String> getIncomingProgress() =>
+    RustLib.instance.api.crateApiSimpleGetIncomingProgress();
+
+/// Get outgoing transfer progress as JSON
+Future<String> getOutgoingProgress() =>
+    RustLib.instance.api.crateApiSimpleGetOutgoingProgress();

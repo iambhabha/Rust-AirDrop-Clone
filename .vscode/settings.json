@@ -1,0 +1,7 @@
+{
+    "dart.projectSearchDepth": 2,
+    "rust-analyzer.linkedProjects": [
+        "Cargo.toml",
+        "fastshare_ui/rust/Cargo.toml"
+    ]
+}

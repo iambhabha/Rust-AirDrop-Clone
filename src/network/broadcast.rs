@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use tokio::net::UdpSocket;
-use tracing::debug;
+use tracing::trace;
 
 /// UDP broadcast engine for LAN-wide discovery announcements.
 ///
@@ -38,7 +38,7 @@ impl BroadcastEngine {
 
         socket.send_to(data, broadcast_addr).await?;
 
-        debug!("Broadcast sent: {} bytes to {}", data.len(), broadcast_addr);
+        trace!("Broadcast sent: {} bytes to {}", data.len(), broadcast_addr);
         Ok(())
     }
 
@@ -50,7 +50,7 @@ impl BroadcastEngine {
         let socket = UdpSocket::bind("0.0.0.0:0").await?;
         socket.send_to(data, target).await?;
 
-        debug!("Unicast sent: {} bytes to {}", data.len(), target);
+        trace!("Unicast sent: {} bytes to {}", data.len(), target);
         Ok(())
     }
 

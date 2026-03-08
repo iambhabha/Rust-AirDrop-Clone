@@ -64,6 +64,7 @@ dirs = "6"
 # ── QR Code ──
 qrcode = "0.14"
 image = "0.25"
+base64 = "0.22"
 
 # ── Async Channels ──
 async-channel = "2"
@@ -78,7 +79,10 @@ hex = "0.4"
 # ── Platform-specific progress/notifications (optional) ──
 indicatif = "0.17"
 hostname = "0.4.2"
+[target.'cfg(not(target_os = "android"))'.dependencies]
 dioxus = { version = "0.7.3", features = ["desktop"] }
+rfd = "0.15"
+opener = "0.7"
 
 [profile.release]
 opt-level = 3

@@ -59,6 +59,10 @@ impl TransferReceiver {
         }
     }
 
+    pub fn active_receptions(&self) -> Arc<DashMap<String, Arc<ReceptionState>>> {
+        self.active_receptions.clone()
+    }
+
     /// Handle a single incoming chunk stream.
     ///
     /// This is called for each QUIC bidirectional stream opened by the sender.
@@ -163,6 +167,12 @@ impl TransferReceiver {
             if received >= chunk_meta.total_chunks {
                 state.completion_notify.notify_one();
             }
+        } else {
+            warn!("Received chunk for unknown file_id: {}", chunk_meta.file_id);
+            // Send NAK
+            let _ = send.write_all(&[0x15]).await;
+            let _ = send.finish();
+            anyhow::bail!("Unknown file_id: {}", chunk_meta.file_id);
         }
 
         // ── Send ACK ──

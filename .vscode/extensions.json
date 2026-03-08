@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "dart-code.flutter",
+        "rust-lang.rust-analyzer",
+        "bungcip.better-toml"
+    ]
+}

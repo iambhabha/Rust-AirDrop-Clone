@@ -9,9 +9,16 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 flutter_rust_bridge = "=2.11.1"
 fastshare = { path = "../../" }
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing = "0.1"
 tokio = { version = "1.0", features = ["rt", "rt-multi-thread"] }
 lazy_static = "1.5.0"
 serde_json = "1.0.149"
+dirs = "6.0"
+local-ip-address = "0.6"
+chrono = "0.4"
+serde = { version = "1.0", features = ["derive"] }
+android_logger = "0.14"
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
