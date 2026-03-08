@@ -187,7 +187,7 @@ class SettingsSheet extends StatelessWidget {
             icon: Icons.folder,
             color: Colors.blueAccent,
             title: 'Save Files to',
-            trailingText: 'Blip',
+            trailingText: 'Rust Drop',
             trailingColor: Colors.blueAccent,
             trailingIcon: Icons.folder_open,
           ),
@@ -216,7 +216,7 @@ class SettingsSheet extends StatelessWidget {
         icon: Icons.email,
         color: Colors.blue,
         title: 'Email',
-        trailingText: 'hello@blip.net',
+        trailingText: 'hello@Rust Drop.io',
         trailingColor: Colors.blueAccent,
       ),
       buildSettingsRow(
@@ -230,7 +230,7 @@ class SettingsSheet extends StatelessWidget {
         icon: Icons.close,
         color: Colors.black,
         title: 'X.com',
-        trailingText: '@blipnet',
+        trailingText: '@Rust Drop',
         trailingColor: Colors.blueAccent,
       ),
     ]);

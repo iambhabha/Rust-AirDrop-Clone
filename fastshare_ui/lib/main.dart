@@ -25,7 +25,7 @@ class MyApp extends StatelessWidget {
         return MaterialApp(
           navigatorKey: navigatorKey,
           debugShowCheckedModeBanner: false,
-          title: 'Blip',
+          title: 'Rust Drop',
           theme: AppTheme.darkTheme.copyWith(
             scaffoldBackgroundColor: const Color(0xFF000000),
             colorScheme: const ColorScheme.dark(

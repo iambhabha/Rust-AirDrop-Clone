@@ -5,6 +5,9 @@ class TransferProgress {
   final int receivedBytes;
   final String? fileId;
   final String? fromAddr;
+  final String? speed;
+  final String? status;
+  final String? totalFiles;
 
   TransferProgress({
     required this.fileName,
@@ -13,6 +16,9 @@ class TransferProgress {
     required this.receivedBytes,
     this.fileId,
     this.fromAddr,
+    this.speed,
+    this.status,
+    this.totalFiles,
   });
 
   factory TransferProgress.fromJson(Map<String, dynamic> json) {
@@ -23,6 +29,9 @@ class TransferProgress {
       receivedBytes: json['received_bytes'] ?? 0,
       fileId: json['file_id'],
       fromAddr: json['from_addr'],
+      speed: json['speed'],
+      status: json['status'],
+      totalFiles: json['total_files'],
     );
   }
 }

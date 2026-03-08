@@ -30,7 +30,7 @@ abstract class _FastShareStore with Store {
       ObservableList<TransferProgress>();
 
   @observable
-  Map<String, dynamic>? outgoingProgress;
+  TransferProgress? outgoingProgress;
 
   @observable
   bool isScanning = false;
@@ -79,12 +79,12 @@ abstract class _FastShareStore with Store {
     isEngineRunning = true;
     try {
       final downloadPath = Platform.isAndroid
-          ? '/storage/emulated/0/Download/FastShare'
+          ? '/storage/emulated/0/Download/Rust Drop'
           : (await getExternalStorageDirectory() ??
                         await getApplicationDocumentsDirectory())
                     .path +
-                '/FastShare';
-      final tempPath = (await getTemporaryDirectory()).path + '/FastShare/temp';
+                '/Rust Drop';
+      final tempPath = (await getTemporaryDirectory()).path + '/Rust Drop/temp';
       await Directory(downloadPath).create(recursive: true);
       await Directory(tempPath).create(recursive: true);
       await startFastshare(downloadPath: downloadPath, tempPath: tempPath);
@@ -151,7 +151,7 @@ abstract class _FastShareStore with Store {
     if (isSending) {
       final pOut = await getOutgoingProgress();
       if (pOut != "null") {
-        outgoingProgress = jsonDecode(pOut);
+        outgoingProgress = TransferProgress.fromJson(jsonDecode(pOut));
       } else {
         outgoingProgress = null;
       }

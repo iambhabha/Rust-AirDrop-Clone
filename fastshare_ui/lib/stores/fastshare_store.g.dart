@@ -87,13 +87,13 @@ mixin _$FastShareStore on _FastShareStore, Store {
   );
 
   @override
-  Map<String, dynamic>? get outgoingProgress {
+  TransferProgress? get outgoingProgress {
     _$outgoingProgressAtom.reportRead();
     return super.outgoingProgress;
   }
 
   @override
-  set outgoingProgress(Map<String, dynamic>? value) {
+  set outgoingProgress(TransferProgress? value) {
     _$outgoingProgressAtom.reportWrite(value, super.outgoingProgress, () {
       super.outgoingProgress = value;
     });

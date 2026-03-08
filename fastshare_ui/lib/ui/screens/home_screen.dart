@@ -25,16 +25,28 @@ class FastShareHome extends StatefulWidget {
 }
 
 class _FastShareHomeState extends State<FastShareHome>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final TextEditingController _ipController = TextEditingController();
   bool _showingIncomingDialog = false;
   Timer? _pollTimer;
+  late AnimationController _fadeController;
+  late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     fastShareStore.init();
+
+    _fadeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _fadeAnimation = CurvedAnimation(
+      parent: _fadeController,
+      curve: Curves.easeIn,
+    );
+    _fadeController.forward();
 
     _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
       _checkPendingIncoming();
@@ -46,6 +58,7 @@ class _FastShareHomeState extends State<FastShareHome>
     WidgetsBinding.instance.removeObserver(this);
     _pollTimer?.cancel();
     _ipController.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -60,22 +73,39 @@ class _FastShareHomeState extends State<FastShareHome>
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: Text('Receive ${pending.totalFiles} items?'),
-        content: Text('From: ${pending.fromAddr}\nFile: ${pending.fileName}'),
+        backgroundColor: const Color(0xFF1C1C1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text(
+          'Receive ${pending.totalFiles} items?',
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          'From: ${pending.fromAddr}\nFile: ${pending.fileName}',
+          style: const TextStyle(color: Colors.white70),
+        ),
         actions: [
           TextButton(
             onPressed: () {
               respondIncoming(fileId: pending.fileId, accept: false);
               Navigator.pop(ctx);
             },
-            child: const Text('Decline'),
+            child: const Text(
+              'Decline',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
           TextButton(
             onPressed: () {
               respondIncoming(fileId: pending.fileId, accept: true);
               Navigator.pop(ctx);
             },
-            child: const Text('Accept'),
+            child: const Text(
+              'Accept',
+              style: TextStyle(
+                color: Color(0xFF9000FF),
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -92,11 +122,16 @@ class _FastShareHomeState extends State<FastShareHome>
           onPressed: _showSettings,
         ),
         title: Text(
-          'Blip',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18.sp),
+          'Rust Drop',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18.sp,
+            letterSpacing: 0.5,
+          ),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
+        elevation: 0,
         actions: [
           IconButton(
             icon: const Icon(Icons.history, color: Colors.white60),
@@ -104,72 +139,96 @@ class _FastShareHomeState extends State<FastShareHome>
           ),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            SearchBar(
-              controller: _ipController,
-              onQrResult: (ip) {
-                _ipController.text = ip;
-                context.showSnackBar('Target set to $ip');
-              },
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.w, vertical: 16.h),
-              child: Observer(
-                builder: (_) {
-                  final displayDevices = [...fastShareStore.nearbyDevices];
-                  final nearbyIps = fastShareStore.nearbyDevices
-                      .map((d) => d.ipAddress)
-                      .toSet();
-                  fastShareStore.savedDevices.forEach((k, v) {
-                    if (!nearbyIps.contains(v.ipAddress)) displayDevices.add(v);
-                  });
-
-                  return DeviceGrid(
-                    devices: displayDevices,
-                    onDeviceTap: (d) async {
-                      if (d.isOnline) {
-                        _ipController.text = d.ipAddress;
-                        final result = await FilePicker.platform.pickFiles(
-                          allowMultiple: true,
-                        );
-                        if (result != null) {
-                          final paths = result.paths
-                              .whereType<String>()
-                              .toList();
-                          final res = await fastShareStore.sendFiles(
-                            paths,
-                            d.ipAddress,
-                          );
-                          if (mounted)
-                            context.showSnackBar(
-                              res,
-                              isError: res.contains('Error'),
-                            );
-                        }
-                      } else {
-                        context.showSnackBar(
-                          'Device is offline',
-                          isError: true,
-                        );
-                      }
-                    },
-                  );
+      body: FadeTransition(
+        opacity: _fadeAnimation,
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SearchBar(
+                controller: _ipController,
+                onQrResult: (ip) {
+                  _ipController.text = ip;
+                  context.showSnackBar('Target set to $ip');
                 },
               ),
-            ),
-            const Spacer(),
-            Padding(
-              padding: EdgeInsets.all(16.w),
-              child: Observer(
-                builder: (_) => ReceivedStack(
-                  activeIncoming: fastShareStore.activeIncoming,
-                  outgoingProgress: fastShareStore.outgoingProgress,
+              Expanded(
+                child: SingleChildScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 16.w,
+                    vertical: 16.h,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Observer(
+                        builder: (_) {
+                          final displayDevices = [
+                            ...fastShareStore.nearbyDevices,
+                          ];
+                          final nearbyIps = fastShareStore.nearbyDevices
+                              .map((d) => d.ipAddress)
+                              .toSet();
+                          fastShareStore.savedDevices.forEach((k, v) {
+                            if (!nearbyIps.contains(v.ipAddress))
+                              displayDevices.add(v);
+                          });
+
+                          return DeviceGrid(
+                            devices: displayDevices,
+                            onDeviceTap: (d) async {
+                              if (d.isOnline) {
+                                _ipController.text = d.ipAddress;
+                                final result = await FilePicker.platform
+                                    .pickFiles(allowMultiple: true);
+                                if (result != null) {
+                                  final paths = result.paths
+                                      .whereType<String>()
+                                      .toList();
+                                  final res = await fastShareStore.sendFiles(
+                                    paths,
+                                    d.ipAddress,
+                                  );
+                                  if (mounted)
+                                    context.showSnackBar(
+                                      res,
+                                      isError: res.contains('Error'),
+                                    );
+                                }
+                              } else {
+                                context.showSnackBar(
+                                  'Device is offline',
+                                  isError: true,
+                                );
+                              }
+                            },
+                          );
+                        },
+                      ),
+                      SizedBox(height: 32.h),
+                      Text(
+                        'Received',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28.sp,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      SizedBox(height: 24.h),
+                      Observer(
+                        builder: (_) => ReceivedStack(
+                          activeIncoming: fastShareStore.activeIncoming,
+                          outgoingProgress: fastShareStore.outgoingProgress,
+                        ),
+                      ),
+                      SizedBox(height: 40.h),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
