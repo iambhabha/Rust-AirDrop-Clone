@@ -72,7 +72,9 @@ class TransferSheet extends StatelessWidget {
                         progress!.status?.toLowerCase() == "received" ||
                         progress!.status?.toLowerCase() == "completed")
                     ? _buildCompletedActions(context)
-                    : _buildProgressActions(),
+                    : _buildProgressActions()
+              else
+                _buildStartingState(),
 
               const SizedBox(height: 24),
             ],
@@ -348,6 +350,40 @@ class TransferSheet extends StatelessWidget {
                   ],
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStartingState() {
+    return Container(
+      height: 94.h,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 20.w,
+            height: 20.w,
+            child: const CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppTheme.primary,
+            ),
+          ),
+          SizedBox(width: 16.w),
+          Text(
+            "Starting transfer...",
+            style: TextStyle(
+              fontSize: 16.sp,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.7),
             ),
           ),
         ],

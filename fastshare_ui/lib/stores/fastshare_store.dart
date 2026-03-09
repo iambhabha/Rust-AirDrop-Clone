@@ -42,6 +42,9 @@ abstract class _FastShareStore with Store {
   bool isSending = false;
 
   @observable
+  String? waitingFileId;
+
+  @observable
   bool checksumEnabled = false;
 
   @observable
@@ -167,6 +170,11 @@ abstract class _FastShareStore with Store {
         outgoingProgress = null;
       }
     }
+
+    if (waitingFileId != null &&
+        activeIncoming.any((p) => p.fileId == waitingFileId)) {
+      waitingFileId = null;
+    }
   }
 
   @action
@@ -208,6 +216,18 @@ abstract class _FastShareStore with Store {
     } finally {
       isHistoryLoading = false;
     }
+  }
+
+  @action
+  Future<void> handleRespondIncoming(String fileId, bool accept) async {
+    // Clear locally first for immediate UI update
+    if (pendingIncoming?.fileId == fileId) {
+      if (accept) {
+        waitingFileId = fileId;
+      }
+      pendingIncoming = null;
+    }
+    await respondIncoming(fileId: fileId, accept: accept);
   }
 
   @action

@@ -189,26 +189,16 @@ impl TransferSender {
             plan.file_name, plan.total_size, plan.total_chunks, self.parallel_streams
         );
 
-        // ── Determine which chunks to send (skip resumed ones) ──
-        let chunks_to_send: Vec<ChunkMeta> = if let Some(state) = resume_state {
-            plan.chunks
-                .iter()
-                .filter(|c| !state.received_chunks.contains(&c.chunk_index))
-                .cloned()
-                .collect()
-        } else {
-            plan.chunks.clone()
-        };
+        // ── Determine which chunks to skip (from resume state) ──
+        let skip_chunks: std::collections::HashSet<u64> = resume_state
+            .map(|s| s.received_chunks.iter().cloned().collect())
+            .unwrap_or_default();
 
-        if chunks_to_send.is_empty() {
-            info!("All chunks already sent (resumed transfer complete)");
-            return Ok(());
-        }
-
+        let chunks_to_send_count = plan.total_chunks as usize - skip_chunks.len();
         info!(
             "Sending {} chunks ({} skipped from resume)",
-            chunks_to_send.len(),
-            plan.total_chunks as usize - chunks_to_send.len()
+            chunks_to_send_count,
+            skip_chunks.len()
         );
 
         // ── Send File Metadata on first stream ──
@@ -313,7 +303,29 @@ impl TransferSender {
 
         let mut handles = Vec::new();
 
-        for chunk_meta in chunks_to_send {
+        // Generate chunks on-the-fly from plan (avoids huge allocation for large files)
+        let total_chunks = plan.total_chunks;
+        let chunk_size = chunker.chunk_size();
+
+        for i in 0..total_chunks {
+            let offset = i * chunk_size;
+            let size = std::cmp::min(chunk_size, plan.total_size - offset);
+            let chunk_meta = ChunkMeta {
+                file_id: plan.file_id.clone(),
+                file_name: plan.file_name.clone(),
+                total_file_size: plan.total_size,
+                chunk_index: i,
+                total_chunks,
+                offset,
+                size,
+                checksum: String::new(), // Computed during read_chunk
+            };
+
+            // ── Skip resumed chunks ──
+            if skip_chunks.contains(&i) {
+                continue;
+            }
+
             // ── Check Transfer Control ──
             if let Some(ref ctrl) = control {
                 if ctrl.is_cancelled() {

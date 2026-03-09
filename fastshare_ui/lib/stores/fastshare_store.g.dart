@@ -99,6 +99,24 @@ mixin _$FastShareStore on _FastShareStore, Store {
     });
   }
 
+  late final _$pendingIncomingAtom = Atom(
+    name: '_FastShareStore.pendingIncoming',
+    context: context,
+  );
+
+  @override
+  PendingIncoming? get pendingIncoming {
+    _$pendingIncomingAtom.reportRead();
+    return super.pendingIncoming;
+  }
+
+  @override
+  set pendingIncoming(PendingIncoming? value) {
+    _$pendingIncomingAtom.reportWrite(value, super.pendingIncoming, () {
+      super.pendingIncoming = value;
+    });
+  }
+
   late final _$isScanningAtom = Atom(
     name: '_FastShareStore.isScanning',
     context: context,
@@ -132,6 +150,24 @@ mixin _$FastShareStore on _FastShareStore, Store {
   set isSending(bool value) {
     _$isSendingAtom.reportWrite(value, super.isSending, () {
       super.isSending = value;
+    });
+  }
+
+  late final _$waitingFileIdAtom = Atom(
+    name: '_FastShareStore.waitingFileId',
+    context: context,
+  );
+
+  @override
+  String? get waitingFileId {
+    _$waitingFileIdAtom.reportRead();
+    return super.waitingFileId;
+  }
+
+  @override
+  set waitingFileId(String? value) {
+    _$waitingFileIdAtom.reportWrite(value, super.waitingFileId, () {
+      super.waitingFileId = value;
     });
   }
 
@@ -289,6 +325,42 @@ mixin _$FastShareStore on _FastShareStore, Store {
     return _$loadHistoryAsyncAction.run(() => super.loadHistory());
   }
 
+  late final _$handleRespondIncomingAsyncAction = AsyncAction(
+    '_FastShareStore.handleRespondIncoming',
+    context: context,
+  );
+
+  @override
+  Future<void> handleRespondIncoming(String fileId, bool accept) {
+    return _$handleRespondIncomingAsyncAction.run(
+      () => super.handleRespondIncoming(fileId, accept),
+    );
+  }
+
+  late final _$handleCancelTransferAsyncAction = AsyncAction(
+    '_FastShareStore.handleCancelTransfer',
+    context: context,
+  );
+
+  @override
+  Future<void> handleCancelTransfer(String fileId) {
+    return _$handleCancelTransferAsyncAction.run(
+      () => super.handleCancelTransfer(fileId),
+    );
+  }
+
+  late final _$handlePauseTransferAsyncAction = AsyncAction(
+    '_FastShareStore.handlePauseTransfer',
+    context: context,
+  );
+
+  @override
+  Future<void> handlePauseTransfer(String fileId) {
+    return _$handlePauseTransferAsyncAction.run(
+      () => super.handlePauseTransfer(fileId),
+    );
+  }
+
   late final _$_FastShareStoreActionController = ActionController(
     name: '_FastShareStore',
     context: context,
@@ -326,8 +398,10 @@ nearbyDevices: ${nearbyDevices},
 savedDevices: ${savedDevices},
 activeIncoming: ${activeIncoming},
 outgoingProgress: ${outgoingProgress},
+pendingIncoming: ${pendingIncoming},
 isScanning: ${isScanning},
 isSending: ${isSending},
+waitingFileId: ${waitingFileId},
 checksumEnabled: ${checksumEnabled},
 compressionEnabled: ${compressionEnabled},
 history: ${history},

@@ -151,24 +151,6 @@ impl FileChunker {
             file_name, total_size, total_chunks, self.chunk_size
         );
 
-        // Calculate chunk metadata (checksums computed lazily during transfer)
-        let mut chunks = Vec::with_capacity(total_chunks as usize);
-        for i in 0..total_chunks {
-            let offset = i * self.chunk_size;
-            let size = std::cmp::min(self.chunk_size, total_size - offset);
-
-            chunks.push(ChunkMeta {
-                file_id: file_id.clone(),
-                file_name: file_name.clone(),
-                total_file_size: total_size,
-                chunk_index: i,
-                total_chunks,
-                offset,
-                size,
-                checksum: String::new(), // Computed during read_chunk
-            });
-        }
-
         Ok(FileChunkPlan {
             file_id,
             file_name,
@@ -177,7 +159,7 @@ impl FileChunker {
             total_batch_size,
             chunk_size: self.chunk_size,
             total_chunks,
-            chunks,
+            chunks: vec![], // Chunks are derived on-the-fly, not serialized
             batch_bytes_already_sent,
             current_file_index,
         })

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart' hide SearchBar;
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import '../../ui/theme.dart';
-import '../../src/rust/api/simple.dart';
 import '../../models/transfer_progress.dart';
 import '../../utils/extensions.dart';
 import '../../stores/fastshare_store.dart';
@@ -69,8 +68,8 @@ class _FastShareHomeState extends State<FastShareHome>
     if (_showingIncomingDialog) return;
 
     // Check pending from store
-    final pending = fastShareStore.pendingIncoming;
-    if (pending == null) return;
+    final initialPending = fastShareStore.pendingIncoming;
+    if (initialPending == null) return;
 
     _showingIncomingDialog = true;
     if (!mounted) return;
@@ -84,9 +83,25 @@ class _FastShareHomeState extends State<FastShareHome>
       builder: (ctx) => Observer(
         builder: (_) {
           final pending = fastShareStore.pendingIncoming;
+          final activeIncoming = fastShareStore.activeIncoming;
 
-          if (pending == null) {
-            // Close sheet as soon as the request is accepted/declined
+          // Find progress for the current file (either from pending or already active)
+          TransferProgress? currentProgress;
+          final targetId = pending?.fileId ?? initialPending.fileId;
+
+          try {
+            currentProgress = activeIncoming.firstWhere(
+              (p) =>
+                  p.fileId == targetId ||
+                  p.fileName == pending?.fileName ||
+                  p.fileName == initialPending.fileName,
+            );
+          } catch (_) {}
+
+          if (pending == null &&
+              currentProgress == null &&
+              fastShareStore.waitingFileId == null) {
+            // Only pop if both pending and active progress are gone, and we aren't waiting for new progress
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (Navigator.canPop(ctx)) Navigator.pop(ctx);
             });
@@ -95,19 +110,20 @@ class _FastShareHomeState extends State<FastShareHome>
 
           return TransferSheet(
             pending: pending,
+            progress: currentProgress,
             onAccept: () {
-              respondIncoming(fileId: pending.fileId, accept: true);
+              fastShareStore.handleRespondIncoming(targetId, true);
             },
             onDecline: () {
-              respondIncoming(fileId: pending.fileId, accept: false);
+              fastShareStore.handleRespondIncoming(targetId, false);
               Navigator.pop(ctx);
             },
             onCancel: () {
-              fastShareStore.handleCancelTransfer(pending.fileId);
+              fastShareStore.handleCancelTransfer(targetId);
               Navigator.pop(ctx);
             },
             onPause: () {
-              fastShareStore.handlePauseTransfer(pending.fileId);
+              fastShareStore.handlePauseTransfer(targetId);
             },
           );
         },

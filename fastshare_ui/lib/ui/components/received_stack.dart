@@ -65,35 +65,30 @@ class _ReceivedStackState extends State<ReceivedStack>
   }
 
   Widget _buildActiveProgress() {
-    final hasActive =
-        widget.activeIncoming.isNotEmpty || widget.outgoingProgress != null;
-    final hasHistory = widget.history.isNotEmpty;
-
-    // Collect all items to show
     final List<Widget> items = [];
 
-    if (hasActive) {
-      items.addAll(
-        widget.activeIncoming.map(
-          (p) => _ReceivedDeck(
-            title: p.fileName.fileName,
-            subtitle:
-                (p.status != null &&
-                    (p.throughputBps == null || p.throughputBps == 0))
-                ? p.status!
-                : (p.throughputBps != null
-                      ? p.throughputBps!.formatSpeed
-                      : 'Receiving...'),
-            itemCount: p.totalFiles ?? 1,
-            isIncoming: true,
-            icon: CupertinoIcons.globe,
-            progress: p.progress,
-            onTap: () => widget.onProgressTap?.call(p),
-          ),
+    // Always show active incoming transfers
+    items.addAll(
+      widget.activeIncoming.map(
+        (p) => _ReceivedDeck(
+          title: p.fileName.fileName,
+          subtitle:
+              (p.status != null &&
+                  (p.throughputBps == null || p.throughputBps == 0))
+              ? p.status!
+              : (p.throughputBps != null
+                    ? p.throughputBps!.formatSpeed
+                    : 'Receiving...'),
+          itemCount: p.totalFiles ?? 1,
+          isIncoming: true,
+          icon: CupertinoIcons.globe,
+          progress: p.progress,
+          onTap: () => widget.onProgressTap?.call(p),
         ),
-      );
-    }
+      ),
+    );
 
+    // Always show outgoing transfer if any
     if (widget.outgoingProgress != null) {
       final p = widget.outgoingProgress!;
       items.add(
@@ -111,16 +106,26 @@ class _ReceivedStackState extends State<ReceivedStack>
       );
     }
 
-    if (!hasActive && hasHistory) {
-      // Show most recent history item if no active transfers
+    // Also show recent history items (up to 4 most recent)
+    // Filter out items that are currently active to avoid duplicates
+    final activeFileNames = {
+      ...widget.activeIncoming.map((p) => p.fileName),
+      if (widget.outgoingProgress != null) widget.outgoingProgress!.fileName,
+    };
+    final historyToShow = widget.history
+        .where((item) => !activeFileNames.contains(item.fileName))
+        .take(4)
+        .toList();
+
+    for (final item in historyToShow) {
       items.add(
         _ReceivedDeck(
-          title: widget.history.first.fileName.fileName,
-          subtitle: widget.history.first.isIncoming ? 'Received' : 'Sent',
-          itemCount: widget.history.first.totalFiles,
-          isIncoming: widget.history.first.isIncoming,
+          title: item.fileName.fileName,
+          subtitle: item.isIncoming ? 'Received' : 'Sent',
+          itemCount: item.totalFiles,
+          isIncoming: item.isIncoming,
           progress: 1.0,
-          onTap: () => widget.onHistoryTap?.call(widget.history.first),
+          onTap: () => widget.onHistoryTap?.call(item),
         ),
       );
     }
@@ -130,14 +135,7 @@ class _ReceivedStackState extends State<ReceivedStack>
       spacing: 16.w,
       runSpacing: 16.h,
       children: items
-          .map(
-            (item) => SizedBox(
-              width:
-                  (1.sw - 48.w) /
-                  2, // Accounting for screen padding and wrap spacing
-              child: item,
-            ),
-          )
+          .map((item) => SizedBox(width: (1.sw - 48.w) / 2, child: item))
           .toList(),
     );
   }
