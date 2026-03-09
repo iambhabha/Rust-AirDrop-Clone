@@ -38,10 +38,10 @@ use crate::transfer::scheduler::StreamScheduler;
 // ── Constants ──
 
 /// Default number of parallel streams for sending
-const DEFAULT_PARALLEL_STREAMS: usize = 16;
+const DEFAULT_PARALLEL_STREAMS: usize = 32;
 
 /// Maximum number of parallel streams
-const MAX_PARALLEL_STREAMS: usize = 64;
+const MAX_PARALLEL_STREAMS: usize = 128;
 
 // ── Data Structures ──
 
@@ -77,6 +77,33 @@ pub struct TransferProgress {
     pub eta_seconds: f64,
     /// Whether the transfer is complete
     pub complete: bool,
+    /// Whether the transfer is currently paused
+    pub is_paused: bool,
+    /// Path where the file is (or will be) saved
+    pub saved_path: Option<String>,
+}
+
+/// Transfer control signals for pausing and cancelling.
+#[derive(Debug, Clone, Default)]
+pub struct TransferControl {
+    /// Signal to pause the transfer
+    pub paused: Arc<AtomicU64>, // 0 = running, 1 = paused
+    /// Signal to cancel the transfer
+    pub cancelled: Arc<AtomicU64>, // 0 = running, 1 = cancelled
+}
+
+impl TransferControl {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.paused.load(Ordering::Relaxed) != 0
+    }
+
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Relaxed) != 0
+    }
 }
 
 /// The parallel file transfer sender.
@@ -140,6 +167,7 @@ impl TransferSender {
         batch_bytes_already_sent: u64,
         resume_state: Option<&TransferState>,
         progress_cb: Option<ProgressCallback>,
+        control: Option<TransferControl>,
     ) -> Result<()> {
         let start_time = Instant::now();
         let file_path = file_path.to_path_buf();
@@ -227,6 +255,7 @@ impl TransferSender {
             let plan_total_batch_size = plan.total_batch_size;
             let plan_batch_already_sent = plan.batch_bytes_already_sent;
 
+            let control_clone = control.clone();
             Some(tokio::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_millis(150));
                 let start_time = std::time::Instant::now();
@@ -236,7 +265,14 @@ impl TransferSender {
                     let cs = chunks_sent_p.load(Ordering::Relaxed);
                     let elapsed = start_time.elapsed().as_secs_f64();
 
-                    let throughput_bps = if elapsed > 0.0 {
+                    let is_paused = control_clone
+                        .as_ref()
+                        .map(|c| c.is_paused())
+                        .unwrap_or(false);
+
+                    let throughput_bps = if is_paused {
+                        0
+                    } else if elapsed > 0.0 {
                         (bs as f64 / elapsed) as u64
                     } else {
                         0
@@ -263,6 +299,8 @@ impl TransferSender {
                         throughput_bps,
                         eta_seconds: eta,
                         complete: cs >= plan_total_chunks,
+                        is_paused,
+                        saved_path: None,
                     });
                     if cs >= plan_total_chunks {
                         break;
@@ -276,6 +314,19 @@ impl TransferSender {
         let mut handles = Vec::new();
 
         for chunk_meta in chunks_to_send {
+            // ── Check Transfer Control ──
+            if let Some(ref ctrl) = control {
+                if ctrl.is_cancelled() {
+                    anyhow::bail!("Transfer cancelled by user");
+                }
+                while ctrl.is_paused() {
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    if ctrl.is_cancelled() {
+                        anyhow::bail!("Transfer cancelled by user during pause");
+                    }
+                }
+            }
+
             let permit = semaphore
                 .clone()
                 .acquire_owned()
@@ -377,6 +428,8 @@ impl TransferSender {
                 throughput_bps: (throughput_mbps * 1024.0 * 1024.0) as u64,
                 eta_seconds: 0.0,
                 complete: true,
+                is_paused: false,
+                saved_path: Some(file_path.to_string_lossy().to_string()),
             });
         }
 

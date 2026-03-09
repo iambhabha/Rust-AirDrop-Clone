@@ -7,8 +7,16 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `do_send_files`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `GLOBAL_APP_STATE`, `GLOBAL_DISCOVERY`, `GLOBAL_SERVER`, `GLOBAL_TRANSFER_PROGRESS`, `RUNTIME`, `TransferStatus`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `deref`, `deref`, `deref`, `deref`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `GLOBAL_APP_STATE`, `GLOBAL_DISCOVERY`, `GLOBAL_SERVER`, `GLOBAL_TRANSFER_CONTROLS`, `GLOBAL_TRANSFER_PROGRESS`, `RUNTIME`, `TransferStatus`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `deref`, `deref`, `deref`, `deref`, `deref`, `deref`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`, `initialize`
+
+/// Cancel an active transfer (incoming or outgoing)
+Future<void> cancelTransfer({required String fileId}) =>
+    RustLib.instance.api.crateApiSimpleCancelTransfer(fileId: fileId);
+
+/// Pause or resume an active transfer
+Future<void> pauseTransfer({required String fileId}) =>
+    RustLib.instance.api.crateApiSimplePauseTransfer(fileId: fileId);
 
 /// Enable or disable chunk checksum verification.
 /// Disabling gives ~10-15% speed boost on local networks.

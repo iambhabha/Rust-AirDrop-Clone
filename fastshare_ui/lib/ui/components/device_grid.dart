@@ -204,7 +204,7 @@ class _DeviceIconState extends State<_DeviceIcon>
             child: AnimatedDefaultTextStyle(
               duration: const Duration(milliseconds: 300),
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodySmall!.copyWith(
                 color: widget.device.isOnline
                     ? AppTheme.foreground
                     : AppTheme.mutedForeground,
@@ -222,7 +222,7 @@ class _DeviceIconState extends State<_DeviceIcon>
           if (widget.device.isOnline)
             Text(
               'Nearby',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodySmall!.copyWith(
                 color: const Color(0xFF32D74B),
                 fontSize: 9.sp,
                 fontWeight: FontWeight.bold,
@@ -266,7 +266,9 @@ class _SpecialIcon extends StatelessWidget {
           child: Text(
             label,
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.mutedForeground, fontSize: 11.sp),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall!.copyWith(fontSize: 11.sp),
           ),
         ),
         Opacity(

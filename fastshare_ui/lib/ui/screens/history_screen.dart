@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'home_screen.dart';
 import '../theme.dart';
+import '../../models/history_item.dart';
+import '../../models/transfer_progress.dart';
+import '../components/transfer_sheet.dart';
+import '../../utils/extensions.dart';
+import 'package:open_filex/open_filex.dart';
 
 class TransferHistoryScreen extends StatefulWidget {
   const TransferHistoryScreen({super.key});
@@ -77,7 +82,7 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
     );
   }
 
-  Widget _buildHistoryList(List<dynamic> items) {
+  Widget _buildHistoryList(List<HistoryItem> items) {
     if (items.isEmpty) {
       return Center(
         child: Column(
@@ -109,27 +114,53 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
             margin: const EdgeInsets.only(bottom: 12),
             color: AppTheme.card.withOpacity(0.5),
             child: ListTile(
+              onTap: () => _showHistoryDetails(context, item),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
                 vertical: 4,
               ),
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color:
-                      (item.isIncoming ? AppTheme.primary : AppTheme.foreground)
-                          .withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  item.isIncoming
-                      ? Icons.download_rounded
-                      : Icons.upload_rounded,
-                  color: item.isIncoming
-                      ? AppTheme.primary
-                      : AppTheme.foreground,
-                  size: 18,
-                ),
+              leading: Stack(
+                alignment: Alignment.center,
+                children: [
+                  SizedBox(
+                    width: 38,
+                    height: 38,
+                    child: CircularProgressIndicator(
+                      value: 1.0,
+                      strokeWidth: 2,
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        (item.isIncoming
+                                ? AppTheme.secondary
+                                : AppTheme.foreground)
+                            .withOpacity(0.2),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color:
+                          (item.isIncoming
+                                  ? AppTheme.secondary
+                                  : AppTheme.foreground)
+                              .withOpacity(0.1),
+                      gradient: item.isIncoming
+                          ? AppTheme.secondaryGradient
+                          : null,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      item.isIncoming
+                          ? Icons.download_rounded
+                          : Icons.upload_rounded,
+                      color: item.isIncoming
+                          ? Colors.white
+                          : AppTheme.foreground,
+                      size: 18,
+                    ),
+                  ),
+                ],
               ),
               title: Text(
                 item.fileName.fileName,
@@ -155,6 +186,38 @@ class _TransferHistoryScreenState extends State<TransferHistoryScreen>
           ),
         );
       },
+    );
+  }
+
+  void _showHistoryDetails(BuildContext context, HistoryItem item) {
+    if (item.savedPath != null) {
+      OpenFilex.open(item.savedPath!);
+      return;
+    }
+
+    final progress = TransferProgress(
+      fileName: item.fileName,
+      progress: 1.0,
+      totalBytes: item.size,
+      receivedBytes: item.size,
+      status: item.status,
+      fromAddr: item.isIncoming ? "External Device" : "Me",
+      totalFiles: item.totalFiles,
+      savedPath: item.savedPath,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      enableDrag: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (ctx) => TransferSheet(
+        progress: progress,
+        onAccept: () {},
+        onDecline: () {},
+        onCancel: () => Navigator.pop(ctx),
+      ),
     );
   }
 }

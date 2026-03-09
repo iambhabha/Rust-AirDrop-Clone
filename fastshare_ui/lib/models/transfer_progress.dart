@@ -7,7 +7,12 @@ class TransferProgress {
   final String? fromAddr;
   final String? speed;
   final String? status;
-  final String? totalFiles;
+  final int? totalFiles;
+
+  final int? throughputBps;
+  final double? batchProgress;
+  final bool? isPaused;
+  final String? savedPath;
 
   TransferProgress({
     required this.fileName,
@@ -19,19 +24,27 @@ class TransferProgress {
     this.speed,
     this.status,
     this.totalFiles,
+    this.throughputBps,
+    this.batchProgress,
+    this.isPaused,
+    this.savedPath,
   });
 
   factory TransferProgress.fromJson(Map<String, dynamic> json) {
     return TransferProgress(
       fileName: json['file_name'] ?? '',
       progress: (json['progress'] as num?)?.toDouble() ?? 0.0,
-      totalBytes: json['total_bytes'] ?? 0,
-      receivedBytes: json['received_bytes'] ?? 0,
+      totalBytes: (json['total_bytes'] as num?)?.toInt() ?? 0,
+      receivedBytes: (json['received_bytes'] as num?)?.toInt() ?? 0,
       fileId: json['file_id'],
       fromAddr: json['from_addr'],
       speed: json['speed'],
       status: json['status'],
-      totalFiles: json['total_files'],
+      totalFiles: (json['total_files'] as num?)?.toInt(),
+      throughputBps: (json['throughput_bps'] as num?)?.toInt(),
+      batchProgress: (json['batch_progress'] as num?)?.toDouble(),
+      isPaused: json['is_paused'] as bool?,
+      savedPath: json['saved_path'],
     );
   }
 }

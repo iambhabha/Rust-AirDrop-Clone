@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
@@ -12,9 +11,13 @@ import '../../utils/extensions.dart';
 import '../../stores/fastshare_store.dart';
 import '../components/device_grid.dart';
 import '../components/received_stack.dart';
+import '../components/transfer_sheet.dart';
 import '../components/settings_sheet.dart';
 import '../components/search_bar.dart';
+import '../screens/qr_scanner_screen.dart';
 import 'history_screen.dart';
+import 'package:pull_down_button/pull_down_button.dart';
+import 'package:open_filex/open_filex.dart';
 
 final fastShareStore = FastShareStore();
 
@@ -64,52 +67,101 @@ class _FastShareHomeState extends State<FastShareHome>
 
   Future<void> _checkPendingIncoming() async {
     if (_showingIncomingDialog) return;
-    final s = await getPendingIncoming();
-    if (s == "null" || s.isEmpty) return;
-    final pending = PendingIncoming.fromJson(jsonDecode(s));
+
+    // Check pending from store
+    final pending = fastShareStore.pendingIncoming;
+    if (pending == null) return;
+
     _showingIncomingDialog = true;
     if (!mounted) return;
-    showDialog(
+
+    showModalBottomSheet(
       context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          'Receive ${pending.totalFiles} items?',
-          style: const TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          'From: ${pending.fromAddr}\nFile: ${pending.fileName}',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      enableDrag: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (ctx) => Observer(
+        builder: (_) {
+          final pending = fastShareStore.pendingIncoming;
+
+          if (pending == null) {
+            // Close sheet as soon as the request is accepted/declined
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (Navigator.canPop(ctx)) Navigator.pop(ctx);
+            });
+            return const SizedBox.shrink();
+          }
+
+          return TransferSheet(
+            pending: pending,
+            onAccept: () {
+              respondIncoming(fileId: pending.fileId, accept: true);
+            },
+            onDecline: () {
               respondIncoming(fileId: pending.fileId, accept: false);
               Navigator.pop(ctx);
             },
-            child: const Text(
-              'Decline',
-              style: TextStyle(color: Colors.redAccent),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              respondIncoming(fileId: pending.fileId, accept: true);
+            onCancel: () {
+              fastShareStore.handleCancelTransfer(pending.fileId);
               Navigator.pop(ctx);
             },
-            child: const Text(
-              'Accept',
-              style: TextStyle(
-                color: AppTheme.primary,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
+            onPause: () {
+              fastShareStore.handlePauseTransfer(pending.fileId);
+            },
+          );
+        },
       ),
-    ).then((_) => _showingIncomingDialog = false);
+    ).then((_) {
+      _showingIncomingDialog = false;
+    });
+  }
+
+  void _showProgressSheet(TransferProgress p) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      enableDrag: true,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (ctx) => Observer(
+        builder: (_) {
+          TransferProgress? current;
+          if (fastShareStore.outgoingProgress?.fileName == p.fileName) {
+            current = fastShareStore.outgoingProgress;
+          } else {
+            try {
+              current = fastShareStore.activeIncoming.firstWhere(
+                (element) => element.fileName == p.fileName,
+              );
+            } catch (_) {
+              current = p;
+            }
+          }
+
+          return TransferSheet(
+            progress: current,
+            onAccept: () {},
+            onDecline: () {},
+            onCancel: () {
+              if (current?.fileId != null) {
+                fastShareStore.handleCancelTransfer(current!.fileId!);
+              } else {
+                fastShareStore.handleCancelTransfer("batch");
+              }
+              Navigator.pop(ctx);
+            },
+            onPause: () {
+              if (current?.fileId != null) {
+                fastShareStore.handlePauseTransfer(current!.fileId!);
+              } else {
+                fastShareStore.handlePauseTransfer("batch");
+              }
+            },
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -117,26 +169,75 @@ class _FastShareHomeState extends State<FastShareHome>
     return Scaffold(
       backgroundColor: AppTheme.background,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(CupertinoIcons.settings, color: Colors.white60),
-          onPressed: _showSettings,
-        ),
         title: Text(
           'Rust Drop',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18.sp,
-            letterSpacing: 0.5,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(CupertinoIcons.clock, color: Colors.white60),
-            onPressed: () => context.push(const TransferHistoryScreen()),
+          PullDownButton(
+            itemBuilder: (context) => [
+              PullDownMenuItem(
+                title: 'Scanner',
+                icon: CupertinoIcons.qrcode_viewfinder,
+                onTap: () async {
+                  final ip = await Navigator.push<String>(
+                    context,
+                    MaterialPageRoute(builder: (_) => const QrScannerScreen()),
+                  );
+                  if (ip != null) {
+                    _ipController.text = ip;
+                    if (mounted) context.showSnackBar('Target set to $ip');
+                  }
+                },
+              ),
+              PullDownMenuItem(
+                title: 'History',
+                icon: CupertinoIcons.clock,
+                onTap: () {
+                  if (mounted) context.push(const TransferHistoryScreen());
+                },
+              ),
+              const PullDownMenuDivider(),
+              PullDownMenuItem(
+                title: 'Settings',
+                icon: CupertinoIcons.settings,
+                onTap: () {
+                  _showSettings();
+                },
+              ),
+              PullDownMenuItem(
+                title: 'Profile',
+                icon: CupertinoIcons.person_crop_circle,
+                onTap: () {
+                  if (mounted) context.showSnackBar('Profile coming soon');
+                },
+              ),
+              const PullDownMenuDivider(),
+              PullDownMenuItem(
+                title: 'Delete',
+                isDestructive: true,
+                icon: CupertinoIcons.delete,
+                onTap: () {
+                  if (mounted) context.showSnackBar('Delete clicked');
+                },
+              ),
+            ],
+            buttonBuilder: (context, showMenu) => CupertinoButton(
+              onPressed: showMenu,
+              padding: EdgeInsets.zero,
+              child: const Icon(
+                CupertinoIcons.ellipsis_circle,
+                color: Colors.white70,
+                size: 28,
+              ),
+            ),
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: FadeTransition(
@@ -209,17 +310,45 @@ class _FastShareHomeState extends State<FastShareHome>
                       SizedBox(height: 32.h),
                       Text(
                         'Received',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 28.sp,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: Theme.of(context).textTheme.displayMedium,
                       ),
                       SizedBox(height: 24.h),
                       Observer(
                         builder: (_) => ReceivedStack(
                           activeIncoming: fastShareStore.activeIncoming,
                           outgoingProgress: fastShareStore.outgoingProgress,
+                          history: fastShareStore.history
+                              .where((i) => i.isIncoming)
+                              .toList(),
+                          onProgressTap: (p) {
+                            if ((p.progress >= 1.0 ||
+                                    p.status?.toLowerCase() == "received" ||
+                                    p.status?.toLowerCase() == "completed") &&
+                                p.savedPath != null) {
+                              OpenFilex.open(p.savedPath!);
+                            } else {
+                              _showProgressSheet(p);
+                            }
+                          },
+                          onHistoryTap: (item) {
+                            if (item.savedPath != null) {
+                              OpenFilex.open(item.savedPath!);
+                            } else {
+                              final p = TransferProgress(
+                                fileName: item.fileName,
+                                progress: 1.0,
+                                totalBytes: item.size,
+                                receivedBytes: item.size,
+                                status: item.status,
+                                fromAddr: item.isIncoming
+                                    ? "External Device"
+                                    : "Me",
+                                totalFiles: item.totalFiles,
+                                savedPath: item.savedPath,
+                              );
+                              _showProgressSheet(p);
+                            }
+                          },
                         ),
                       ),
                       SizedBox(height: 40.h),
@@ -235,8 +364,11 @@ class _FastShareHomeState extends State<FastShareHome>
   }
 
   void _showSettings() {
-    showCupertinoModalPopup(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      enableDrag: true,
       builder: (_) => Observer(
         builder: (_) => SettingsSheet(
           savedDevices: fastShareStore.savedDevices.values.toList(),

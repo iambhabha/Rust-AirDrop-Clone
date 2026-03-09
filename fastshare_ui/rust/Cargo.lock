@@ -4747,6 +4747,7 @@ version = "0.1.0"
 dependencies = [
  "android_logger 0.14.1",
  "chrono",
+ "dashmap 6.1.0",
  "dirs",
  "fastshare",
  "flutter_rust_bridge",

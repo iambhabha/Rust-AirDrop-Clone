@@ -6,6 +6,7 @@ use fastshare::transfer::sender::{TransferProgress, TransferSender};
 use serde::Serialize;
 use std::net::SocketAddr;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::runtime::Runtime;
 
@@ -15,6 +16,65 @@ lazy_static::lazy_static! {
     static ref GLOBAL_TRANSFER_PROGRESS: Mutex<Option<TransferProgress>> = Mutex::new(None);
     static ref GLOBAL_APP_STATE: Mutex<Option<Arc<AppState>>> = Mutex::new(None);
     static ref GLOBAL_DISCOVERY: Mutex<Option<fastshare::network::discovery::DiscoveryService>> = Mutex::new(None);
+    static ref GLOBAL_TRANSFER_CONTROLS: dashmap::DashMap<String, fastshare::transfer::sender::TransferControl> = dashmap::DashMap::new();
+}
+
+/// Cancel an active transfer (incoming or outgoing)
+pub fn cancel_transfer(file_id: String) {
+    tracing::info!("🚫 [FastShare] cancel_transfer called for {}", file_id);
+
+    // 1. Signal cancellation for outgoing
+    if let Some(ctrl) = GLOBAL_TRANSFER_CONTROLS.get(&file_id) {
+        ctrl.value()
+            .cancelled
+            .store(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    // 2. Remove from incoming
+    if let Ok(guard) = GLOBAL_APP_STATE.lock() {
+        if let Some(state) = guard.as_ref() {
+            state.transfer_receiver.active_receptions().remove(&file_id);
+        }
+    }
+}
+
+/// Pause or resume an active transfer
+pub fn pause_transfer(file_id: String) {
+    let new_state;
+    if let Some(ctrl) = GLOBAL_TRANSFER_CONTROLS.get(&file_id) {
+        let current = ctrl
+            .value()
+            .paused
+            .load(std::sync::atomic::Ordering::Relaxed);
+        new_state = if current == 0 { 1 } else { 0 };
+        ctrl.value()
+            .paused
+            .store(new_state, std::sync::atomic::Ordering::Relaxed);
+        tracing::info!(
+            "⏸️ [FastShare] pause_transfer: {} is now {}",
+            file_id,
+            if new_state == 1 { "PAUSED" } else { "RESUMED" }
+        );
+    } else {
+        let ctrl = fastshare::transfer::sender::TransferControl::default();
+        ctrl.paused.store(1, std::sync::atomic::Ordering::Relaxed);
+        new_state = 1;
+        GLOBAL_TRANSFER_CONTROLS.insert(file_id.clone(), ctrl);
+        tracing::info!(
+            "⏸️ [FastShare] pause_transfer: {} is now PAUSED (new control)",
+            file_id
+        );
+    }
+
+    // Sync with receiver if active
+    if let Some(state) = GLOBAL_APP_STATE.lock().unwrap().clone() {
+        if let Some(reception) = state.transfer_receiver.active_receptions().get(&file_id) {
+            reception
+                .control
+                .paused
+                .store(new_state, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
 }
 // Checksum toggle uses fastshare::CHECKSUM_ENABLED AtomicBool from lib.rs
 
@@ -202,7 +262,25 @@ async fn do_send_files(
     }
 
     let mut batch_bytes_already_sent = 0u64;
+    let transfer_ctrl = fastshare::transfer::sender::TransferControl::default();
+    GLOBAL_TRANSFER_CONTROLS.insert("batch".to_string(), transfer_ctrl.clone());
+
     for (idx, path) in file_paths.iter().enumerate() {
+        // Check for cancellation
+        if transfer_ctrl.is_cancelled() {
+            tracing::info!("📤 [FastShare] Transfer cancelled by user");
+            GLOBAL_TRANSFER_CONTROLS.remove("batch");
+            return "Transfer Cancelled".into();
+        }
+
+        // Wait if paused
+        while transfer_ctrl.is_paused() {
+            if transfer_ctrl.is_cancelled() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        }
+
         let cb = progress_cb.clone();
         let progress_cb_opt = Some(Box::new(move |p: TransferProgress| cb(p))
             as Box<dyn Fn(TransferProgress) + Send + Sync + 'static>);
@@ -227,6 +305,7 @@ async fn do_send_files(
                 batch_bytes_already_sent,
                 None,
                 progress_cb_opt,
+                Some(transfer_ctrl.clone()),
             )
             .await
         {
@@ -271,6 +350,7 @@ async fn do_send_files(
             }
         }
     }
+    GLOBAL_TRANSFER_CONTROLS.remove("batch");
     format!(
         "Success! Sent {}/{} files to {}",
         success_count, total, target_addr
@@ -392,8 +472,27 @@ pub fn get_incoming_progress() -> String {
     let state_opt = GLOBAL_APP_STATE.lock().unwrap().clone();
     if let Some(state) = state_opt {
         let mut progress_list = Vec::new();
-        for r in state.transfer_receiver.active_receptions().iter() {
-            let s = r.value();
+        for mut r in state.transfer_receiver.active_receptions().iter_mut() {
+            let s = r.value_mut();
+
+            // ── Sync Control Signals ──
+            if let Some(ctrl) = GLOBAL_TRANSFER_CONTROLS.get(&s.plan.file_id) {
+                s.control
+                    .paused
+                    .store(ctrl.paused.load(Ordering::Relaxed), Ordering::Relaxed);
+                s.control
+                    .cancelled
+                    .store(ctrl.cancelled.load(Ordering::Relaxed), Ordering::Relaxed);
+            } else if let Some(ctrl) = GLOBAL_TRANSFER_CONTROLS.get("batch") {
+                // If no specific file ID, might be controlled by batch (for sender)
+                s.control
+                    .paused
+                    .store(ctrl.paused.load(Ordering::Relaxed), Ordering::Relaxed);
+                s.control
+                    .cancelled
+                    .store(ctrl.cancelled.load(Ordering::Relaxed), Ordering::Relaxed);
+            }
+
             let received_chunks = s.chunks_received.load(std::sync::atomic::Ordering::Relaxed);
             let progress = if s.plan.total_chunks > 0 {
                 received_chunks as f64 / s.plan.total_chunks as f64
@@ -417,7 +516,16 @@ pub fn get_incoming_progress() -> String {
                 0
             };
 
+            let is_paused = s.control.is_paused();
             let is_reassembling = received_chunks as u64 == s.plan.total_chunks;
+            let status = if is_paused {
+                "Paused"
+            } else if is_reassembling {
+                "Reassembling..."
+            } else {
+                "Receiving..."
+            };
+
             progress_list.push(serde_json::json!({
                 "file_name": s.plan.file_name,
                 "file_id": s.plan.file_id,
@@ -431,8 +539,10 @@ pub fn get_incoming_progress() -> String {
                 "total_batch_size": s.plan.total_batch_size,
                 "batch_bytes_received": s.plan.batch_bytes_already_sent + received_bytes,
                 "batch_progress": batch_progress,
-                "throughput_bps": throughput_bps,
-                "status": if is_reassembling { "Reassembling..." } else { "Receiving..." },
+                "throughput_bps": if is_paused { 0 } else { throughput_bps },
+                "status": status,
+                "is_paused": is_paused,
+                "saved_path": format!("{}/{}", state.download_path, s.plan.file_name),
             }));
         }
         serde_json::to_string(&progress_list).unwrap_or_else(|_| "[]".into())

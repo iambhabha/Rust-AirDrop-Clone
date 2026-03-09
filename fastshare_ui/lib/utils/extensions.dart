@@ -9,6 +9,12 @@ extension SizeFormatting on int {
     }
     return '${(this / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
+
+  String get formatSpeed {
+    if (this <= 0) return '0 Mbps';
+    double mbps = (this * 8) / (1024 * 1024);
+    return '${mbps.toStringAsFixed(1)} Mbps';
+  }
 }
 
 extension ContextExtensions on BuildContext {

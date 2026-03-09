@@ -27,17 +27,17 @@ use uuid::Uuid;
 
 // ── Constants ──
 
-/// Default chunk size: 4 MB (100 Mbps - 999 Mbps WiFi)
-pub const DEFAULT_CHUNK_SIZE: u64 = 2 * 1024 * 1024;
+/// Default chunk size: 8 MB (Standard for modern WiFi)
+pub const DEFAULT_CHUNK_SIZE: u64 = 8 * 1024 * 1024;
 
-/// Fast network chunk size: 8 MB (1-5 Gbps)
-pub const FAST_CHUNK_SIZE: u64 = 4 * 1024 * 1024;
+/// Fast network chunk size: 16 MB (Gbit networks)
+pub const FAST_CHUNK_SIZE: u64 = 16 * 1024 * 1024;
 
-/// Ultra-fast network chunk size: 16 MB (>5 Gbps)
-pub const ULTRA_FAST_CHUNK_SIZE: u64 = 6 * 1024 * 1024;
+/// Ultra-fast network chunk size: 32 MB (>5 Gbps or local loopback)
+pub const ULTRA_FAST_CHUNK_SIZE: u64 = 32 * 1024 * 1024;
 
-/// Slow network chunk size: 1 MB (<100 Mbps)
-pub const SLOW_CHUNK_SIZE: u64 = 1 * 1024 * 1024;
+/// Slow network chunk size: 4 MB (Slow WiFi or mobile)
+pub const SLOW_CHUNK_SIZE: u64 = 4 * 1024 * 1024;
 
 // ── Data Structures ──
 
@@ -255,11 +255,11 @@ impl FileChunker {
 
 /// Classify network speed in Mbps to a NetworkSpeed enum.
 pub fn classify_network_speed(mbps: u64) -> NetworkSpeed {
-    if mbps < 100 {
+    if mbps < 50 {
         NetworkSpeed::Slow
-    } else if mbps < 1000 {
+    } else if mbps < 500 {
         NetworkSpeed::Normal
-    } else if mbps < 5000 {
+    } else if mbps < 2000 {
         NetworkSpeed::Fast
     } else {
         NetworkSpeed::UltraFast

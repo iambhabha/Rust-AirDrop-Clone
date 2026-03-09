@@ -33,6 +33,9 @@ abstract class _FastShareStore with Store {
   TransferProgress? outgoingProgress;
 
   @observable
+  PendingIncoming? pendingIncoming;
+
+  @observable
   bool isScanning = false;
 
   @observable
@@ -93,10 +96,10 @@ abstract class _FastShareStore with Store {
     }
 
     _discoveryTimer = Timer.periodic(
-      const Duration(seconds: 2),
+      const Duration(seconds: 10),
       (_) => _refreshDevices(),
     );
-    _pollTimer = Timer.periodic(const Duration(milliseconds: 500), (_) {
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 100), (_) {
       _updateProgress();
     });
   }
@@ -117,8 +120,8 @@ abstract class _FastShareStore with Store {
       for (var d in newDevices) {
         _saveDeviceInfo(d);
       }
-    } catch (e) {
-      debugPrint("Refresh error: $e");
+    } catch (e, s) {
+      debugPrint("Refresh error: $e, $s");
     }
   }
 
@@ -146,6 +149,14 @@ abstract class _FastShareStore with Store {
     final List<dynamic> decoIn = jsonDecode(pIn);
     activeIncoming.clear();
     activeIncoming.addAll(decoIn.map((e) => TransferProgress.fromJson(e)));
+
+    // Pending Incoming
+    final pPend = await getPendingIncoming();
+    if (pPend != "null") {
+      pendingIncoming = PendingIncoming.fromJson(jsonDecode(pPend));
+    } else {
+      pendingIncoming = null;
+    }
 
     // Outgoing
     if (isSending) {
@@ -197,6 +208,17 @@ abstract class _FastShareStore with Store {
     } finally {
       isHistoryLoading = false;
     }
+  }
+
+  @action
+  Future<void> handleCancelTransfer(String fileId) async {
+    await cancelTransfer(fileId: fileId);
+    await loadHistory();
+  }
+
+  @action
+  Future<void> handlePauseTransfer(String fileId) async {
+    await pauseTransfer(fileId: fileId);
   }
 
   void dispose() {

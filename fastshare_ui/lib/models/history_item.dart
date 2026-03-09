@@ -22,11 +22,11 @@ class HistoryItem {
   factory HistoryItem.fromJson(Map<String, dynamic> json) {
     return HistoryItem(
       fileName: json['file_name'] ?? '',
-      size: json['size'] ?? 0,
+      size: (json['size'] as num?)?.toInt() ?? 0,
       status: json['status'] ?? '',
       timestamp: json['timestamp'] ?? '',
       isIncoming: json['is_incoming'] ?? false,
-      totalFiles: json['total_files'] ?? 1,
+      totalFiles: (json['total_files'] as num?)?.toInt() ?? 1,
       savedPath: json['saved_path'],
       timeTakenSecs: (json['time_taken_secs'] as num?)?.toDouble(),
     );

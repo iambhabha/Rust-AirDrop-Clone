@@ -28,6 +28,7 @@ Widget buildSettingsGroup(List<Widget> rows) {
 }
 
 Widget buildSettingsRow({
+  required BuildContext context,
   required IconData icon,
   required Color color,
   required String title,
@@ -40,6 +41,7 @@ Widget buildSettingsRow({
   ValueChanged<bool>? onSwitchChanged,
   VoidCallback? onTap,
 }) {
+  final textTheme = Theme.of(context).textTheme;
   return InkWell(
     onTap: isSwitch ? () => onSwitchChanged?.call(!switchValue) : onTap,
     child: Padding(
@@ -59,11 +61,7 @@ Widget buildSettingsRow({
           Expanded(
             child: Text(
               title,
-              style: const TextStyle(
-                color: AppTheme.foreground,
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-              ),
+              style: textTheme.labelLarge?.copyWith(color: AppTheme.foreground),
             ),
           ),
           if (trailingIcon != null) ...[
@@ -77,11 +75,11 @@ Widget buildSettingsRow({
           if (trailingText != null)
             Text(
               trailingText,
-              style: TextStyle(
+              style: textTheme.bodySmall?.copyWith(
                 color: trailingColor ?? AppTheme.mutedForeground,
-                fontSize: 13,
               ),
             ),
+
           if (isNav) ...[
             const SizedBox(width: 4),
             Icon(

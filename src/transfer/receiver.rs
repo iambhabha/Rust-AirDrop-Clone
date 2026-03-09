@@ -26,6 +26,7 @@ use tracing::{debug, info, warn};
 use crate::compression;
 use crate::storage::chunk_storage::ChunkStorage;
 use crate::transfer::chunker::{ChunkMeta, FileChunkPlan};
+use crate::transfer::sender::TransferControl;
 
 // ── Data Structures ──
 
@@ -42,6 +43,8 @@ pub struct ReceptionState {
     pub completion_notify: Notify,
     /// Time when the reception started
     pub start_time: std::time::Instant,
+    /// Control signals for pause/cancel
+    pub control: TransferControl,
 }
 
 /// The transfer receiver — handles incoming chunk streams
@@ -123,6 +126,20 @@ impl TransferReceiver {
         let mut data = Vec::with_capacity(chunk_meta.size as usize);
         let mut read_buf = vec![0u8; 512 * 1024]; // 512 KB read buffer for speed
         loop {
+            // ── Check Transfer Control ──
+            if let Some(state) = self.active_receptions.get(&chunk_meta.file_id) {
+                let ctrl = &state.control;
+                if ctrl.is_cancelled() {
+                    anyhow::bail!("Transfer cancelled by user (receiver)");
+                }
+                while ctrl.is_paused() {
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    if ctrl.is_cancelled() {
+                        anyhow::bail!("Transfer cancelled by user during pause (receiver)");
+                    }
+                }
+            }
+
             match recv.read(&mut read_buf).await? {
                 Some(n) => data.extend_from_slice(&read_buf[..n]),
                 None => break,
@@ -205,6 +222,7 @@ impl TransferReceiver {
             from_addr,
             completion_notify: Notify::new(),
             start_time: std::time::Instant::now(),
+            control: TransferControl::default(),
         });
 
         // Create chunk storage directory

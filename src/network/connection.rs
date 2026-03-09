@@ -37,11 +37,11 @@ const MAX_CONCURRENT_BIDI_STREAMS: u32 = 128;
 /// Maximum concurrent unidirectional streams per connection.
 const MAX_CONCURRENT_UNI_STREAMS: u32 = 128;
 
-/// Initial window size in bytes (64 MB).
-const INITIAL_WINDOW: u32 = 64 * 1024 * 1024;
+/// Initial window size in bytes (128 MB).
+const INITIAL_WINDOW: u32 = 128 * 1024 * 1024;
 
-/// Maximum window size in bytes (256 MB).
-const MAX_WINDOW: u32 = 256 * 1024 * 1024;
+/// Maximum window size in bytes (512 MB).
+const MAX_WINDOW: u32 = 512 * 1024 * 1024;
 
 /// Maximum idle timeout in milliseconds (2 minutes).
 const MAX_IDLE_TIMEOUT_MS: u32 = 120_000;
@@ -290,10 +290,8 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
 
                             if already_pending {
                                 // Someone else is showing a popup. Wait and try again.
-                                // We use a small sleep to avoid tight-looping, but naturally
-                                // it will break once our session is decided by a previous stream
-                                // OR when the other connection's popup clears.
-                                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                                // We use a much smaller sleep to increase responsiveness.
+                                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
                                 continue;
                             }
 
@@ -353,22 +351,6 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
 
                         if !final_accepted {
                             info!("Transfer declined for {}", file_name);
-                            // Add to history as declined
-                            let mut history = app_state.transfer_history.lock().unwrap();
-                            history.push(crate::app::TransferHistoryItem {
-                                file_name: file_name.clone(),
-                                size: plan.total_size,
-                                status: "Declined".into(),
-                                timestamp: chrono::Local::now()
-                                    .format("%Y-%m-%d %H:%M:%S")
-                                    .to_string(),
-                                is_incoming: true,
-                                saved_path: None,
-                                total_files: plan.total_files,
-                                time_taken_secs: None,
-                            });
-                            drop(history);
-                            crate::app::App::save_history(&app_state);
                             return;
                         }
 

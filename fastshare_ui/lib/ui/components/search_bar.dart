@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import '../screens/qr_scanner_screen.dart';
 import '../theme.dart';
 
 class SearchBar extends StatefulWidget {
@@ -91,20 +90,6 @@ class _SearchBarState extends State<SearchBar>
               Icons.search,
               color: AppTheme.mutedForeground,
               size: 20.w,
-            ),
-            suffixIcon: IconButton(
-              icon: Icon(
-                Icons.qr_code_scanner,
-                color: AppTheme.mutedForeground,
-                size: 20.w,
-              ),
-              onPressed: () async {
-                final ip = await Navigator.push<String>(
-                  context,
-                  MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-                );
-                if (ip != null) widget.onQrResult(ip);
-              },
             ),
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 14),

@@ -49,6 +49,9 @@ dependencies:
   mobx: ^2.6.0
   flutter_mobx: ^2.3.0
   flutter_svg: ^2.2.4
+  google_fonts: ^8.0.2
+  pull_down_button: ^0.10.2
+  open_filex: ^4.7.0
 
 dev_dependencies:
   flutter_test:

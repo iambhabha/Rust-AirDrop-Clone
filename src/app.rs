@@ -289,6 +289,8 @@ pub async fn run_send_loop(
                 throughput_bps: 0,
                 eta_seconds: 0.0,
                 complete: false,
+                is_paused: false,
+                saved_path: None,
             });
         }
 
@@ -318,13 +320,14 @@ pub async fn run_send_loop(
                         .send_file(
                             &connection,
                             &file_path,
-                            NetworkSpeed::Normal,
+                            NetworkSpeed::Fast,
                             total_files,
                             current_idx,
                             total_batch_size,
                             batch_bytes_already_sent,
                             None, // resume_state
                             progress_cb,
+                            None, // control
                         )
                         .await
                     {
