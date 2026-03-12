@@ -263,10 +263,6 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
                             return;
                         }
 
-                        // Send ACK for file plan so the sender can safely start sending chunks
-                        let _ = send_stream.write_all(&[0x06]).await;
-                        let _ = send_stream.finish();
-
                         // Check if session is already decided or being decided.
                         // Only the FIRST file in the batch sets pending_incoming_display and waits for user.
                         // Other files in the same batch just wait for the decision.
@@ -348,14 +344,39 @@ async fn handle_connection(connection: Connection, state: Arc<AppState>) -> Resu
 
                         // Just in case some stream arrived late after the decision was made but before notify_waiters
                         let final_accepted = session_decision.read().await.unwrap_or(false);
+                        let rx = receiver.clone();
+                        let app_state_inner = app_state.clone();
 
                         if !final_accepted {
                             info!("Transfer declined for {}", file_name);
+                            // Send NAK for file plan
+                            let _ = send_stream.write_all(&[0x15]).await;
+                            let _ = send_stream.finish();
                             return;
                         }
 
-                        let rx = receiver.clone();
-                        let app_state_inner = app_state.clone();
+                        // Send ACK for file plan so the sender can safely start sending chunks
+                        let _ = send_stream.write_all(&[0x06]).await;
+                        let _ = send_stream.finish();
+
+                        // Add to history immediately upon acceptance (so it shows in UI)
+                        {
+                            let mut history = app_state_inner.transfer_history.lock().unwrap();
+                            history.push(crate::app::TransferHistoryItem {
+                                file_name: file_name.clone(),
+                                size: plan.total_size,
+                                status: "Receiving...".into(),
+                                timestamp: chrono::Local::now()
+                                    .format("%Y-%m-%d %H:%M:%S")
+                                    .to_string(),
+                                is_incoming: true,
+                                saved_path: None,
+                                total_files: plan.total_files,
+                                time_taken_secs: None,
+                            });
+                            drop(history);
+                            crate::app::App::save_history(&app_state_inner);
+                        }
 
                         tokio::spawn(async move {
                             if let Some(rx_state) = rx.get_reception(&file_id) {

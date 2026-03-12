@@ -228,6 +228,11 @@ abstract class _FastShareStore with Store {
       pendingIncoming = null;
     }
     await respondIncoming(fileId: fileId, accept: accept);
+    if (accept) {
+      // Give the backend a tiny moment to write the "Receiving..." status
+      await Future.delayed(const Duration(milliseconds: 100));
+      await loadHistory();
+    }
   }
 
   @action

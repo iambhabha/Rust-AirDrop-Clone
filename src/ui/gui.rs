@@ -40,153 +40,73 @@ fn progress_pct(prog: &crate::transfer::sender::TransferProgress) -> f64 {
     }
 }
 
-/// Generate QR code PNG as base64 data URL for display.
-fn qr_data_url(ip: &str) -> String {
-    let code = match QrCode::new(ip.as_bytes()) {
-        Ok(c) => c,
-        Err(_) => return String::new(),
-    };
-    let image = code
-        .render::<image::Luma<u8>>()
-        .quiet_zone(true)
-        .min_dimensions(200, 200)
-        .build();
-    let png_data = Vec::new();
-    let mut cursor = std::io::Cursor::new(png_data);
-    if image::DynamicImage::ImageLuma8(image)
-        .write_to(&mut cursor, image::ImageFormat::Png)
-        .is_err()
-    {
-        return String::new();
-    }
-    let png_data = cursor.into_inner();
-    format!("data:image/png;base64,{}", BASE64.encode(png_data))
-}
-
 #[component]
-fn HistoryItemWidget(item: crate::app::TransferHistoryItem) -> Element {
-    let is_success = item.status == "Success" || item.status.to_lowercase().contains("success");
-    let is_incoming = item.is_incoming;
-    let status_color = if is_success { "#4ECDC4" } else { "#FF6B6B" };
-
-    rsx! {
-        div {
-            style: "display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: #0f3460; border-radius: 10px; gap: 0.8rem; border-left: 4px solid {status_color};",
-            div {
-                style: "display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; background: rgba(255,255,255,0.05); border-radius: 50%; color: {status_color}; font-size: 1.2rem;",
-                if is_incoming { "📥" } else { "📤" }
-            }
-            div {
-                style: "flex: 1; min-width: 0;",
-                p { style: "margin: 0; font-size: 0.95rem; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{item.file_name}" }
-                p { style: "margin: 0.2rem 0 0; font-size: 0.8rem; color: #a9b5c9;",
-                    "{format_size(item.size)}  •  {item.status}"
-                }
-                p { style: "margin: 0.1rem 0 0; font-size: 0.7rem; color: #666;", "{item.timestamp}" }
-            }
-            div {
-                style: "display: flex; gap: 0.5rem;",
-                if is_success && item.saved_path.is_some() {
-                    button {
-                        style: "padding: 0.4rem 0.7rem; border-radius: 6px; background: rgba(78, 205, 196, 0.2); color: #4ECDC4; border: 1px solid #4ECDC4; cursor: pointer; font-size: 0.8rem; font-weight: bold;",
-                        onclick: move |_| {
-                            if let Some(ref path_str) = item.saved_path {
-                                gui_bridge::open_file(&std::path::PathBuf::from(path_str));
-                            }
-                        },
-                        "📂 Open"
-                    }
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn DeviceButton(device: DeviceInfo, selected_device: Signal<Option<DeviceInfo>>) -> Element {
+fn DeviceButton(
+    device: DeviceInfo,
+    selected_device: Signal<Option<DeviceInfo>>,
+    selected_files: Signal<Vec<PathBuf>>,
+) -> Element {
     let dev = device.clone();
     let is_selected = selected_device()
         .as_ref()
         .map_or(false, |d| d.device_id == device.device_id);
-    let border_color = if is_selected {
-        "#4ECDC4"
+    let bg_color = if is_selected {
+        "rgba(255,255,255,0.05)"
     } else {
         "transparent"
     };
-    let bg_color = if is_selected { "#1e3a5f" } else { "#0f3460" };
-    let features_str = device.supported_features.join(", ");
+
+    // Choose icon
+    let icon_char = if dev.device_type.to_lowercase().contains("android")
+        || dev.device_type.to_lowercase().contains("phone")
+    {
+        "📱"
+    } else if dev.device_type.to_lowercase().contains("mac")
+        || dev.device_type.to_lowercase().contains("windows")
+        || dev.device_type.to_lowercase().contains("pc")
+        || dev.device_type.to_lowercase().contains("desktop")
+        || dev.device_type.to_lowercase().contains("laptop")
+    {
+        "💻"
+    } else {
+        "💻"
+    };
 
     rsx! {
         button {
-            style: "padding: 0.8rem 1rem; text-align: left; border-radius: 8px; background-color: {bg_color}; color: white; border: 2px solid {border_color}; cursor: pointer; width: 100%; transition: all 0.2s;",
+            style: "width: 100%; display: flex; align-items: center; gap: 1.2rem; padding: 0.9rem; background-color: {bg_color}; border: none; border-radius: 8px; cursor: pointer; transition: background 0.2s;",
             onclick: move |_| {
-                tracing::info!("Selected device: {}", dev.ip_address);
                 selected_device.set(Some(dev.clone()));
-            },
-            div {
-                style: "font-weight: bold; margin-bottom: 0.3rem;",
-                "{device.device_name}"
-                span { style: "color: #4ECDC4; font-weight: normal; font-size: 0.85rem; margin-left: 0.5rem;", "({device.device_type})" }
-            }
-            div { style: "font-size: 0.85rem; color: #a9b5c9;",
-                "IP: {device.ip_address}:{device.port}"
-            }
-            div { style: "font-size: 0.75rem; color: #888; margin-top: 0.2rem; font-family: monospace;",
-                "ID: {device.device_id}"
-            }
-            div { style: "font-size: 0.75rem; color: #888;",
-                "Bandwidth: {device.max_bandwidth}  •  v{device.protocol_version}"
-            }
-            if !device.supported_features.is_empty() {
-                div { style: "font-size: 0.7rem; color: #666; margin-top: 0.2rem;",
-                    "Features: {features_str}"
-                }
-            }
-        }
-    }
-}
-
-#[component]
-fn DeviceCard(
-    device: DeviceInfo,
-    selected_device: Signal<Option<DeviceInfo>>,
-    selected_files: Signal<Vec<PathBuf>>,
-    send_screen: Signal<bool>,
-) -> Element {
-    let dev = device.clone();
-    rsx! {
-        div {
-            style: "background-color: #0f3460; padding: 1.2rem; border-radius: 16px; border: 1px solid rgba(78, 205, 196, 0.3); display: flex; justify-content: space-between; align-items: center; box-shadow: 0 8px 24px rgba(0,0,0,0.2); transition: transform 0.2s; cursor: default;",
-            div {
-                div {
-                    style: "font-weight: 800; color: white; margin-bottom: 0.4rem; font-size: 1.15rem;",
-                    "📱 {device.device_name}"
-                    span { style: "color: #4ECDC4; font-weight: normal; font-size: 0.85rem; margin-left: 0.6rem; background: rgba(78, 205, 196, 0.1); padding: 2px 8px; border-radius: 12px;", "{device.device_type}" }
-                }
-                div { style: "font-size: 0.95rem; color: #a9b5c9; opacity: 0.8;",
-                    "IP: {device.ip_address}:{device.port}"
-                }
-            }
-            button {
-                style: "padding: 0.7rem 1.4rem; font-size: 0.95rem; font-weight: 900; border-radius: 12px; background-color: #4ECDC4; color: #1a1a2e; border: none; cursor: pointer; white-space: nowrap; transition: all 0.2s; box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);",
-                onclick: move |_| {
-                    let mut sel_files = selected_files;
-                    let mut show_send = send_screen;
-                    let mut sel_dev = selected_device;
-                    let device_clone = dev.clone();
-                    spawn(async move {
-                        let files = rfd::AsyncFileDialog::new().pick_files().await;
-                        if let Some(paths) = files {
-                            let list: std::vec::Vec<std::path::PathBuf> = paths.into_iter().map(|f| f.path().to_path_buf()).collect();
-                            if !list.is_empty() {
-                                sel_files.set(list);
-                                sel_dev.set(Some(device_clone));
-                                show_send.set(true);
+                // Immediately open file picker and send
+                let mut sel_files = selected_files;
+                let device_clone = dev.clone();
+                spawn(async move {
+                    let files = rfd::AsyncFileDialog::new().pick_files().await;
+                    if let Some(paths) = files {
+                        let list: std::vec::Vec<std::path::PathBuf> = paths.into_iter().map(|f| f.path().to_path_buf()).collect();
+                        if !list.is_empty() {
+                            if let Some(b) = gui_bridge::get_bridge() {
+                                let addr = std::net::SocketAddr::new(device_clone.ip_address, device_clone.port);
+                                let _ = b.send_tx.try_send((list, addr));
                             }
                         }
-                    });
-                },
-                "📤 SEND"
+                    }
+                });
+            },
+            div {
+                style: "width: 44px; height: 44px; border-radius: 50%; background-color: #e87d65; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; color: white; flex-shrink: 0;",
+                "{icon_char}"
+            }
+            div {
+                style: "display: flex; flex-direction: column; align-items: flex-start; text-align: left; overflow: hidden; white-space: nowrap;",
+                span {
+                    style: "color: white; font-weight: 500; font-size: 1.05rem; text-overflow: ellipsis; overflow: hidden; max-width: 100%; letter-spacing: 0.2px;",
+                    "{device.device_name}"
+                }
+                span {
+                    style: "color: #888; font-size: 0.85rem; text-overflow: ellipsis; overflow: hidden; max-width: 100%; margin-top: 0.2rem;",
+                    "IP: {device.ip_address}"
+                }
             }
         }
     }
@@ -196,20 +116,15 @@ fn DeviceCard(
 pub fn app() -> Element {
     let mut selected_files = use_signal(|| Vec::<PathBuf>::new());
     let mut selected_device = use_signal(|| None::<DeviceInfo>);
-    let mut send_screen = use_signal(|| false);
     let mut status_message = use_signal(|| None::<String>);
-    let mut history_tab = use_signal(|| "All");
+    let mut show_settings = use_signal(|| false);
     let refresh_tick = use_signal(|| 0u32);
-    let mut checksum_enabled_signal = use_signal(|| crate::is_checksum_enabled());
-    let mut compression_enabled_signal = use_signal(|| crate::is_compression_enabled());
 
-    // Reactive signals for progress
     let transfer_progress_signal = use_signal(|| None::<crate::transfer::sender::TransferProgress>);
     let incoming_progress_signal =
         use_signal(|| Vec::<crate::ui::gui_bridge::IncomingProgress>::new());
-    let transfer_history_signal = use_signal(|| Vec::<crate::app::TransferHistoryItem>::new());
 
-    // Poll every 1.5s so Nearby Devices list updates when phone is discovered
+    // Poll every 1.5s
     use_effect(move || {
         let mut tick = refresh_tick;
         spawn(async move {
@@ -225,27 +140,19 @@ pub fn app() -> Element {
         let mut stat = status_message;
         let mut tp = transfer_progress_signal;
         let mut ip = incoming_progress_signal;
-        let mut th = transfer_history_signal;
         spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_millis(200)).await;
-
-                // Sync bridge state into Dioxus signals to trigger re-renders
                 tp.set(gui_bridge::get_transfer_progress());
                 ip.set(gui_bridge::get_incoming_progress());
-                th.set(gui_bridge::get_transfer_history());
 
-                // Get real-time status updates from backend
                 if let Some(msg) = gui_bridge::take_backend_status() {
                     stat.set(Some(msg));
-                    // Auto-clear status after 5 seconds
                     spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                         stat.set(None);
                     });
                 }
-
-                // Check for completed transfers to auto-clear
                 if let Some(prog) = gui_bridge::get_transfer_progress() {
                     if prog.complete {
                         spawn(async move {
@@ -258,21 +165,9 @@ pub fn app() -> Element {
         });
     });
 
-    // Read signals so component updates
     let _refresh_eval = refresh_tick();
     let transfer_progress = transfer_progress_signal();
     let incoming_progress = incoming_progress_signal();
-    let transfer_history = transfer_history_signal();
-
-    let filtered_history: Vec<_> = transfer_history
-        .iter()
-        .filter(|h| match history_tab() {
-            "Received" => h.is_incoming,
-            "Sent" => !h.is_incoming,
-            _ => true,
-        })
-        .cloned()
-        .collect();
 
     let bridge = gui_bridge::get_bridge();
     let mut devices: Vec<DeviceInfo> = if let Some(ref b) = bridge {
@@ -283,7 +178,6 @@ pub fn app() -> Element {
     } else {
         Vec::new()
     };
-    // Sort by IP for consistent ordering
     devices.sort_by(|a, b| a.ip_address.to_string().cmp(&b.ip_address.to_string()));
     let local_ip = local_ip_address::local_ip()
         .unwrap_or(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1)));
@@ -300,8 +194,8 @@ pub fn app() -> Element {
         pending_from,
         pending_fname,
         pending_total_files,
-        pending_total_size,
-        pending_batch_size,
+        _pending_total_size,
+        _pending_batch_size,
     ) = pending
         .as_ref()
         .map(|p| (p.0.clone(), format!("{}", p.1), p.2.clone(), p.3, p.4, p.5))
@@ -312,408 +206,241 @@ pub fn app() -> Element {
 
     rsx! {
         div {
-            style: "display: flex; flex-direction: column; align-items: center; min-height: 100vh; background-color: #1a1a2e; color: white; font-family: 'Inter', system-ui, sans-serif; padding: 2rem; overflow-x: hidden;",
+            style: "display: flex; height: 100vh; width: 100vw; overflow: hidden; background-color: #1c1c1c; color: white; font-family: 'Ligurino', system-ui, sans-serif; user-select: none;",
 
-            // Header and Settings
+            // Sidebar
             div {
-                style: "display: flex; justify-content: space-between; width: 100%; max-width: 650px; align-items: flex-start; margin-bottom: 2.5rem;",
-                div {
-                    h1 {
-                        style: "font-size: 3.5rem; margin-bottom: 0.5rem; background: linear-gradient(45deg, #FF6B6B, #4ECDC4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-weight: 900;",
-                        "⚡ FastShare"
-                    }
-                    p {
-                        style: "font-size: 1.25rem; margin: 0; color: #a9b5c9; letter-spacing: 1px;",
-                        "The Ultimate P2P File Transfer Protocol"
-                    }
-                }
+                style: "width: 320px; background-color: #262626; display: flex; flex-direction: column; flex-shrink: 0;",
 
+                // Header
                 div {
-                    style: "display: flex; gap: 0.8rem; align-items: center; margin-top: 1rem;",
-                    button {
-                        style: if compression_enabled_signal() {
-                            "padding: 0.6rem 1rem; border-radius: 12px; background: rgba(52, 152, 219, 0.1); color: #3498DB; border: 1px solid rgba(52, 152, 219, 0.3); cursor: pointer; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.95rem;"
-                        } else {
-                            "padding: 0.6rem 1rem; border-radius: 12px; background: rgba(78, 205, 196, 0.1); color: #4ECDC4; border: 1px solid rgba(78, 205, 196, 0.3); cursor: pointer; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.95rem;"
-                        },
-                        onclick: move |_| {
-                            let new_val = !crate::is_compression_enabled();
-                            crate::set_compression_enabled(new_val);
-                            compression_enabled_signal.set(new_val);
-                            status_message.set(Some(if new_val { "Compression ON (Auto-skip)".into() } else { "Compression OFF (Raw Transfer)".into() }));
-                        },
-                        if compression_enabled_signal() { "🗜️ Zip: ON" } else { "🌬️ Zip: OFF" }
+                    style: "display: flex; justify-content: space-between; align-items: center; padding: 2.2rem 1.6rem 1.2rem 1.6rem;",
+                    div {
+                        style: "display: flex; align-items: center; gap: 0.3rem;",
+                        h1 {
+                            style: "margin: 0; font-size: 1.9rem; font-weight: 700; letter-spacing: -0.3px; color: #ffffff;",
+                            "Rust Drop"
+                        }
                     }
                     button {
-                        style: if checksum_enabled_signal() {
-                            "padding: 0.6rem 1rem; border-radius: 12px; background: rgba(255, 107, 107, 0.1); color: #FF6B6B; border: 1px solid rgba(255, 107, 107, 0.3); cursor: pointer; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.95rem;"
-                        } else {
-                            "padding: 0.6rem 1rem; border-radius: 12px; background: rgba(78, 205, 196, 0.1); color: #4ECDC4; border: 1px solid rgba(78, 205, 196, 0.3); cursor: pointer; font-weight: bold; transition: all 0.2s; white-space: nowrap; font-size: 0.95rem;"
-                        },
+                        style: "background: none; border: none; color: #a0a0a0; cursor: pointer; font-size: 1.4rem; padding: 0; display: flex; align-items: center; justify-content: center; transition: color 0.2s;",
                         onclick: move |_| {
-                            let new_val = !crate::is_checksum_enabled();
-                            crate::set_checksum_enabled(new_val);
-                            checksum_enabled_signal.set(new_val);
-                            status_message.set(Some(if new_val { "Checksum ON (Safe Mode)".into() } else { "Checksum OFF (Max Speed)".into() }));
+                            let mut s = show_settings;
+                            s.set(!s());
                         },
-                        if checksum_enabled_signal() { "🛡️ CRC32: ON" } else { "🚀 CRC32: OFF" }
+                        dangerous_inner_html: r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>"#
                     }
-                }
-            }
 
-            if send_screen() {
-                // ── Send screen ──
-                div {
-                    style: "background-color: #16213e; padding: 2rem; border-radius: 20px; width: 100%; max-width: 500px; margin-bottom: 2rem; border: 1px solid rgba(78, 205, 196, 0.3); box-shadow: 0 20px 40px rgba(0,0,0,0.4);",
-                    h3 { style: "margin-top: 0; margin-bottom: 1.5rem; color: #4ECDC4; font-size: 1.5rem;", "📤 Send Files" }
-                    if selected_files().is_empty() {
-                        p { style: "color: #a9b5c9; font-style: italic;", "No files selected." }
-                    } else {
+                    if show_settings() {
                         div {
-                            style: "background: rgba(0,0,0,0.2); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem;",
-                            p { style: "color: white; font-weight: bold; margin: 0 0 0.5rem;", "{selected_files().len()} Files Selected" }
-                            ul {
-                                style: "color: #a9b5c9; font-size: 0.9rem; margin: 0; padding-left: 1.2rem; max-height: 120px; overflow-y: auto;",
-                                for path in selected_files().iter().take(15) {
-                                    li { style: "margin-bottom: 0.2rem;",
-                                        "{path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| path.to_string_lossy().into_owned())}"
-                                    }
+                            style: "position: absolute; top: 4.8rem; left: 160px; width: 220px; background-color: #2b2b2b; border: 1px solid #3d3d3d; border-radius: 12px; box-shadow: 0 15px 40px rgba(0,0,0,0.6); z-index: 1000; display: flex; flex-direction: column; overflow: hidden;",
+
+                            // User Profile
+                            div {
+                                style: "display: flex; align-items: center; gap: 1rem; padding: 1.2rem; border-bottom: 1px solid #3d3d3d;",
+                                div {
+                                    style: "width: 36px; height: 36px; border-radius: 50%; background-color: #555; display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 1.1rem; color: #fff;",
+                                    "D"
                                 }
-                                if selected_files().len() > 15 {
-                                    li { "... and {selected_files().len() - 15} more" }
+                                div {
+                                    style: "display: flex; flex-direction: column; margin-top: -2px;",
+                                    span { style: "color: white; font-weight: 500; font-size: 1.05rem;", "dev" }
+                                    span { style: "color: #a0a0a0; font-size: 0.8rem; margin-top: 1px;", "devrajheropanti@gmail.co..." }
+                                }
+                            }
+
+                            // Feedback & Help
+                            div {
+                                style: "padding: 1rem 1.2rem; border-bottom: 1px solid #3d3d3d;",
+                                p { style: "margin: 0 0 0.8rem 0; color: #a0a0a0; font-size: 0.8rem; font-weight: 500;", "Feedback & Help" }
+                                div { style: "display: flex; align-items: center; gap: 1rem; color: #e5e5e5; padding: 0.45rem 0; cursor: pointer; font-size: 0.95rem; font-weight: 500;",
+                                    span { style: "color: #d0d0d0; display: flex;", dangerous_inner_html: r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>"# }
+                                    "Email"
+                                }
+                                div { style: "display: flex; align-items: center; gap: 1rem; color: #e5e5e5; padding: 0.45rem 0; cursor: pointer; font-size: 0.95rem; font-weight: 500;",
+                                    span { style: "color: #d0d0d0; display: flex;", dangerous_inner_html: r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>"# }
+                                    "Discord"
+                                }
+                                div { style: "display: flex; align-items: center; gap: 1rem; color: #e5e5e5; padding: 0.45rem 0; cursor: pointer; font-size: 0.95rem; font-weight: 500;",
+                                    span { style: "color: #d0d0d0; display: flex;", dangerous_inner_html: r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path></svg>"# }
+                                    "Twitter"
+                                }
+                            }
+
+                            // Support Blip
+                            div {
+                                style: "padding: 1rem 1.2rem;",
+                                p { style: "margin: 0 0 0.8rem 0; color: #a0a0a0; font-size: 0.8rem; font-weight: 500;", "Support Blip" }
+                                div { style: "display: flex; align-items: center; gap: 1rem; color: #e5e5e5; padding: 0.45rem 0; cursor: pointer; font-size: 0.95rem; font-weight: 500;",
+                                    span { style: "color: #d0d0d0; display: flex;", dangerous_inner_html: r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>"# }
+                                    "Donate"
+                                }
+                                div { style: "display: flex; align-items: center; gap: 1rem; color: #e5e5e5; padding: 0.45rem 0; cursor: pointer; font-size: 0.95rem; font-weight: 500;",
+                                    span { style: "color: #d0d0d0; display: flex;", dangerous_inner_html: r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>"# }
+                                    "Upgrade"
+                                }
+                                div { style: "display: flex; align-items: center; justify-content: space-between; color: #e5e5e5; padding: 0.45rem 0; cursor: pointer; font-size: 0.95rem; font-weight: 500; margin-top: 0.5rem;",
+                                    div { style: "display: flex; align-items: center; gap: 1rem;",
+                                        span { style: "color: #d0d0d0; display: flex;", dangerous_inner_html: r#"<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>"# }
+                                        "Settings"
+                                    }
+                                    span { style: "color: #777; font-size: 0.75rem;", "v1.1.15" }
                                 }
                             }
                         }
                     }
+                }
 
-                    p { style: "margin-bottom: 0.8rem; color: white; font-weight: bold;", "Select Destination Device:" }
+                // Search Input
+                div {
+                    style: "padding: 0 1.6rem 2rem 1.6rem;",
                     div {
-                        style: "display: flex; flex-direction: column; gap: 0.8rem; max-height: 250px; overflow-y: auto; padding-right: 0.5rem;",
-                        for dinfo in &devices {
-                            DeviceButton {
-                                device: dinfo.clone(),
-                                selected_device: selected_device,
-                            }
+                        style: "display: flex; align-items: center; background-color: #333333; border: 1px solid #3d3d3d; border-radius: 8px; padding: 0.8rem 1rem;",
+                        input {
+                            r#type: "text",
+                            placeholder: "Name or email",
+                            style: "background: transparent; border: none; color: white; outline: none; width: 100%; font-size: 0.95rem; font-family: inherit;",
                         }
-                        if devices.is_empty() {
-                            p { style: "color: #ff6b6b; font-size: 0.9rem; margin: 1rem 0; border: 1px dashed #ff6b6b; padding: 0.8rem; border-radius: 8px;", "No nearby devices found. Start FastShare on your phone/tablet." }
-                        }
-                    }
-                    div {
-                        style: "display: flex; gap: 1.2rem; margin-top: 2rem;",
-                        button {
-                            style: "flex: 2; padding: 1rem; border-radius: 12px; background-color: #4ECDC4; color: #1a1a2e; border: none; cursor: pointer; font-weight: bold; font-size: 1.1rem; transition: all 0.2s;",
-                            onclick: move |_| {
-                                if let (Some(ref device), Some(b)) =
-                                    (selected_device(), gui_bridge::get_bridge())
-                                {
-                                    let paths = selected_files();
-                                    if paths.is_empty() {
-                                        status_message.set(Some("Please select files first.".into()));
-                                        return;
-                                    }
-                                    let addr = std::net::SocketAddr::new(device.ip_address, device.port);
-                                    let paths_list: Vec<_> = paths.iter().cloned().collect();
-                                    let count = paths_list.len();
-                                    match b.send_tx.try_send((paths_list, addr)) {
-                                        Ok(_) => {
-                                            status_message.set(Some(format!("Sent request for {} file(s)", count)));
-                                            send_screen.set(false);
-                                            selected_files.set(Vec::new());
-                                            selected_device.set(None);
-                                        }
-                                        Err(e) => {
-                                            tracing::error!("Failed to queue batch: {}", e);
-                                            status_message.set(Some(format!("Failed to send: {}", e)));
-                                        }
-                                    }
-                                } else {
-                                    status_message.set(Some("Please select a device.".into()));
-                                }
-                            },
-                            "🚀 Send Now"
-                        }
-                        button {
-                            style: "flex: 1; padding: 1rem; border-radius: 12px; background-color: transparent; color: #FF6B6B; border: 2px solid #FF6B6B; cursor: pointer; font-weight: bold;",
-                            onclick: move |_| {
-                                send_screen.set(false);
-                                selected_files.set(Vec::new());
-                                selected_device.set(None);
-                            },
-                            "Cancel"
+                        span {
+                            // Easily replaceable Search Icon
+                            style: "color: #777; margin-left: 0.5rem; display: flex; align-items: center; justify-content: center;",
+                            dangerous_inner_html: r#"<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>"#
                         }
                     }
                 }
-            } else {
-                // ── Home ──
-                div {
-                    style: "display: flex; gap: 2rem; margin-top: 0;",
-                    button {
-                        style: "padding: 1.25rem 3.5rem; font-size: 1.4rem; font-weight: 900; border-radius: 20px; background-color: #4ECDC4; color: #1a1a2e; border: none; cursor: pointer; box-shadow: 0 10px 40px rgba(78, 205, 196, 0.4); transition: all 0.2s;",
-                        onclick: move |_| {
-                            let mut sel_files = selected_files;
-                            let mut show_send = send_screen;
-                            spawn(async move {
-                                let files = rfd::AsyncFileDialog::new().pick_files().await;
-                                if let Some(paths) = files {
-                                    let list: Vec<PathBuf> = paths.into_iter().map(|f| f.path().to_path_buf()).collect();
-                                    if !list.is_empty() {
-                                        sel_files.set(list);
-                                        show_send.set(true);
-                                    }
-                                }
-                            });
-                        },
-                        "🚀 SEND FILES"
-                    }
-                }
-            }
 
-            // ── IP & QR ──
-            div {
-                style: "margin-top: 3rem; background: rgba(15, 52, 96, 0.6); backdrop-filter: blur(12px); padding: 2.2rem; border-radius: 28px; width: 100%; max-width: 650px; border: 1px solid rgba(78, 205, 196, 0.25); box-shadow: 0 12px 48px rgba(0,0,0,0.4);",
+                // Device List
                 div {
-                    style: "display: flex; align-items: center; gap: 3rem; flex-wrap: wrap; justify-content: center;",
-                    div {
-                        style: "background: white; padding: 14px; border-radius: 20px; box-shadow: 0 0 35px rgba(255,255,255,0.15);",
-                        img {
-                            style: "width: 170px; height: 170px; display: block;",
-                            src: "{qr_data_url(&local_ip.to_string())}",
-                            alt: "QR Code",
+                    style: "flex: 1; overflow-y: auto; padding: 0 1.0rem 1.5rem 1.0rem; display: flex; flex-direction: column; gap: 0.2rem;",
+                    for dinfo in &devices {
+                        DeviceButton {
+                            device: dinfo.clone(),
+                            selected_device: selected_device,
+                            selected_files: selected_files,
                         }
                     }
-                    div {
-                        style: "flex: 1; min-width: 280px; text-align: left;",
-                        h3 { style: "color: #4ECDC4; margin: 0 0 0.6rem; font-size: 1.5rem; font-weight: 800;", "Receive Files" }
-                        p { style: "color: #a9b5c9; font-size: 1rem; margin: 0; font-weight: 500;", "Your Device IP Address:" }
-                        p {
-                            style: "color: white; font-size: 2.2rem; font-weight: 900; margin: 0.5rem 0; font-family: 'JetBrains Mono', monospace; letter-spacing: 1px; text-shadow: 0 0 20px rgba(78, 205, 196, 0.5);",
-                            "{local_ip}"
-                        }
-                        p {
-                            style: "color: #888; font-size: 0.95rem; margin-top: 1rem; line-height: 1.6; font-style: italic;",
-                            "Scan QR with FastShare Mobile or enter IP to connect instantly."
-                        }
-                    }
-                }
-            }
-
-            // ── Nearby Devices (Always Visible on Home) ──
-            if !send_screen() {
-                div {
-                    style: "margin-top: 3.5rem; width: 100%; max-width: 650px;",
-                    div {
-                        style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;",
-                        h3 { style: "color: #4ECDC4; margin: 0; font-size: 1.6rem; font-weight: 800; display: flex; align-items: center; gap: 0.8rem;",
-                            "📱 Nearby Devices"
-                            if !devices.is_empty() {
-                                span { style: "font-size: 0.8rem; background: #4ECDC4; color: #1a1a2e; padding: 2px 10px; border-radius: 12px; font-weight: 900;", "{devices.len()} ONLINE" }
-                            }
-                        }
-                        button {
-                            style: "background: rgba(78, 205, 196, 0.1); border: 1px solid rgba(78, 205, 196, 0.3); color: #4ECDC4; padding: 0.4rem 1rem; border-radius: 10px; cursor: pointer; font-size: 0.85rem; font-weight: bold; transition: all 0.2s;",
-                            onclick: move |_| {
-                                gui_bridge::trigger_scan();
-                                status_message.set(Some("Scanning for devices...".into()));
-                            },
-                            "🔄 Rescan"
-                        }
-                    }
-
                     if devices.is_empty() {
-                        div {
-                            style: "background: rgba(15, 52, 96, 0.3); padding: 3rem; border-radius: 20px; text-align: center; border: 1px dashed rgba(78, 205, 196, 0.3);",
-                            div { style: "font-size: 2.5rem; margin-bottom: 1rem; animation: pulse 2s infinite;", "🔍" }
-                            p { style: "color: #a9b5c9; font-size: 1.1rem; margin: 0; font-weight: 500;", "Searching for nearby devices..." }
-                            p { style: "color: #666; font-size: 0.9rem; margin-top: 0.5rem;", "Make sure FastShare is open on other devices." }
-                        }
-                    } else {
-                        div {
-                            style: "display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;",
-                            for dinfo in &devices {
-                                DeviceCard {
-                                    device: dinfo.clone(),
-                                    selected_device: selected_device,
-                                    selected_files: selected_files,
-                                    send_screen: send_screen,
-                                }
-                            }
-                        }
+                         div {
+                             style: "text-align: center; color: #777; font-size: 0.95rem; padding-top: 2.5rem; font-style: italic;",
+                             "Searching for devices..."
+                         }
                     }
                 }
             }
 
-            // ── Ongoing transfers ──
+            // Main Content Area
             div {
-                style: "margin-top: 2.5rem; width: 100%; max-width: 650px; display: flex; flex-direction: column; gap: 1.2rem;",
-                if let Some(ref prog) = transfer_progress {
+                style: "flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; background-color: #1b1b1b;",
+
+                if transfer_progress.is_none() && incoming_progress.is_empty() {
+                    // Welcome Splash
                     div {
-                        style: "background: #16213e; padding: 1.5rem; border-radius: 18px; border: 1px solid #4ECDC4; box-shadow: 0 10px 25px rgba(78, 205, 196, 0.1);",
-                        div {
-                            style: "display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;",
-                            div {
-                                h4 { style: "margin: 0; color: #4ECDC4; font-size: 1.1rem;", "📤 Uploading..." }
-                                p { style: "margin: 0.3rem 0 0; font-weight: bold; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 400px;", "{prog.file_name}" }
-                            }
-                            if prog.total_files > 1 {
-                                span { style: "background: #0f3460; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.8rem; color: #a9b5c9;", "File {prog.current_file_index} / {prog.total_files}" }
-                            }
+                        style: "text-align: center; display: flex; flex-direction: column; align-items: center;",
+                        h2 {
+                            style: "margin: 0; font-size: 2.1rem; font-weight: 700; color: rgba(255,255,255,0.3); letter-spacing: -0.2px;",
+                            "Welcome to Rust Drop"
                         }
-                        div {
-                            style: "width: 100%; height: 12px; background: #0f3460; border-radius: 6px; overflow: hidden; margin-top: 1rem; border: 1px solid rgba(255,255,255,0.05);",
-                            div {
-                                style: "height: 100%; background: linear-gradient(90deg, #4ECDC4, #FF6B6B); transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1); width: {format_size_pct(progress_pct(prog))};",
-                            }
-                        }
-                        div {
-                            style: "display: flex; justify-content: space-between; margin-top: 0.8rem; font-size: 0.9rem; color: #a9b5c9; font-weight: 500;",
-                            span { "{format_size_pct(progress_pct(prog))} completed" }
-                            span { style: "color: #4ECDC4;", "{format_throughput(prog.throughput_bps)}" }
+                        p {
+                            style: "margin: 1.2rem 0 0; font-size: 1.15rem; color: #666; text-align: center; max-width: 380px; line-height: 1.5; font-weight: 400;",
+                            "Send any size file or folder to anyone, wherever they are, super fast"
                         }
                     }
-                }
-
-                if !incoming_progress.is_empty() {
+                } else {
+                    // Transfer Progress View
                     div {
-                        style: "background: #16213e; padding: 1.5rem; border-radius: 18px; border: 1px solid #FF6B6B; box-shadow: 0 10px 25px rgba(255,107,107,0.1);",
-                        h4 { style: "margin: 0 0 1.2rem; color: #FF6B6B; font-size: 1.1rem; display: flex; align-items: center; gap: 0.6rem;", "📥 Receiving {incoming_progress.len()} Files" }
-                        div {
-                            style: "display: flex; flex-direction: column; gap: 1rem;",
-                            {
-                                incoming_progress.into_iter().map(|ip| {
-                                    let pct = format_size_pct(ip.progress * 100.0);
-                                    let received = format_size(ip.received_bytes);
-                                    let total = format_size(ip.total_bytes);
-                                    let current = ip.current_file_index;
-                                    let total_fs = ip.total_files;
-                                    let rec_ch = ip.received_chunks;
-                                    let tot_ch = ip.total_chunks;
-                                    let fname = ip.file_name.clone();
-                                    let label = if total_fs > 1 {
-                                        format!("File {}/{} • {}", current, total_fs, pct)
-                                    } else {
-                                        format!("{} • {}/{} Chunks", pct, rec_ch, tot_ch)
-                                    };
-                                    let range = format!("{} / {}", received, total);
+                        style: "width: 100%; max-width: 550px; padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem;",
 
-                                    let status = ip.status.clone();
+                        if let Some(ref prog) = transfer_progress {
+                            div {
+                                style: "background: #2b2b2b; padding: 1.8rem; border-radius: 12px; border: 1px solid #3d3d3d;",
+                                h4 { style: "margin: 0 0 1.2rem; color: #e87d65; font-size: 1.15rem; font-weight: 600;", "📤 Sending..." }
+                                p { style: "margin: 0 0 1.5rem; font-weight: 500; font-size: 1.1rem; color: white;", "{prog.file_name}" }
+                                div {
+                                    style: "width: 100%; height: 6px; background: #1e1e1e; border-radius: 3px; overflow: hidden; margin-bottom: 1rem;",
+                                    div {
+                                        style: "height: 100%; background: #e87d65; transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1); width: {format_size_pct(progress_pct(prog))};",
+                                    }
+                                }
+                                div {
+                                    style: "display: flex; justify-content: space-between; font-size: 0.95rem; color: #888;",
+                                    span { "{format_size_pct(progress_pct(prog))} completed" }
+                                    span { "{format_throughput(prog.throughput_bps)}" }
+                                }
+                            }
+                        }
 
-                                    rsx! {
-                                        div {
-                                            key: "{fname}",
-                                            style: "padding: 1rem; background: rgba(15, 52, 96, 0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);",
-                                            p { style: "margin: 0 0 0.2rem; font-size: 0.95rem; font-weight: bold; color: white;", "{fname}" }
-                                            p { style: "margin: 0 0 0.5rem; font-size: 0.8rem; color: #a9b5c9;", "{status}" }
-                                            div {
-                                                style: "width: 100%; height: 8px; background: #1a1a2e; border-radius: 4px; overflow: hidden; margin: 0.6rem 0;",
+                        if !incoming_progress.is_empty() {
+                            div {
+                                style: "background: #2b2b2b; padding: 1.8rem; border-radius: 12px; border: 1px solid #3d3d3d;",
+                                h4 { style: "margin: 0 0 1.2rem; color: #4ECDC4; font-size: 1.15rem; font-weight: 600;", "📥 Receiving..." }
+                                div {
+                                    style: "display: flex; flex-direction: column; gap: 1.5rem;",
+                                    {
+                                        incoming_progress.into_iter().map(|ip| {
+                                            let pct = format_size_pct(ip.progress * 100.0);
+                                            let fname = ip.file_name.clone();
+                                            rsx! {
                                                 div {
-                                                    style: "height: 100%; background: #FF6B6B; width: {pct};",
+                                                    key: "{fname}",
+                                                    p { style: "margin: 0 0 1rem; font-weight: 500; font-size: 1.1rem; color: white;", "{fname}" }
+                                                    div {
+                                                        style: "width: 100%; height: 6px; background: #1e1e1e; border-radius: 3px; overflow: hidden; margin-bottom: 1rem;",
+                                                        div {
+                                                            style: "height: 100%; background: #4ECDC4; transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1); width: {pct};",
+                                                        }
+                                                    }
+                                                    div { style: "display: flex; justify-content: space-between; font-size: 0.95rem; color: #888;",
+                                                        span { "{pct} completed" }
+                                                        span { "{format_size(ip.received_bytes)} / {format_size(ip.total_bytes)}" }
+                                                    }
                                                 }
                                             }
-                                            div { style: "display: flex; justify-content: space-between; font-size: 0.8rem; color: #a9b5c9;",
-                                                span { "{label}" }
-                                                span { "{range}" }
-                                            }
-                                        }
+                                        })
                                     }
-                                })
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // ── Transfer History ──
-            div {
-                style: "margin-top: 3rem; background: rgba(15, 52, 96, 0.4); backdrop-filter: blur(10px); padding: 2.2rem; border-radius: 28px; width: 100%; max-width: 650px; box-shadow: 0 18px 56px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.05);",
-                div {
-                    style: "display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;",
-                    h3 { style: "margin: 0; font-size: 1.7rem; font-weight: 900;", "📋 Transfer History" }
+                // Snackbar
+                if let Some(ref msg) = status_message() {
                     div {
-                        style: "display: flex; background: #0f3460; border-radius: 14px; padding: 0.4rem; box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);",
-                        for tab in ["All", "Received", "Sent"] {
-                            button {
-                                key: "{tab}",
-                                style: if history_tab() == tab {
-                                    "padding: 0.6rem 1.4rem; border-radius: 11px; border: none; font-size: 0.9rem; font-weight: 800; cursor: pointer; transition: all 0.25s; background: #4ECDC4; color: #1a1a2e; box-shadow: 0 4px 12px rgba(78, 205, 196, 0.3);"
-                                } else {
-                                    "padding: 0.6rem 1.4rem; border-radius: 11px; border: none; font-size: 0.9rem; font-weight: 700; cursor: pointer; transition: all 0.25s; background: transparent; color: #a9b5c9;"
-                                },
-                                onclick: move |_| history_tab.set(tab),
-                                "{tab}"
-                            }
-                        }
-                    }
-                }
-
-                div {
-                    style: "display: flex; flex-direction: column; gap: 1.1rem; max-height: 450px; overflow-y: auto; padding-right: 0.8rem;",
-                    if filtered_history.is_empty() {
-                        div {
-                            style: "text-align: center; padding: 3.5rem 1rem; color: #555; background: rgba(0,0,0,0.15); border-radius: 20px; border: 1px dashed rgba(255,255,255,0.05);",
-                            p { style: "font-size: 1.2rem; margin: 0; font-style: italic;", "No transfers to show here yet." }
-                        }
-                    } else {
-                        for item in filtered_history.iter().rev() {
-                            HistoryItemWidget { item: item.clone() }
-                        }
+                        style: "position: absolute; bottom: 2rem; background: #e87d65; color: white; padding: 1rem 1.8rem; border-radius: 30px; font-weight: 500; font-size: 1rem; box-shadow: 0 8px 25px rgba(0,0,0,0.4); z-index: 2000;",
+                        "✨ {msg}"
                     }
                 }
             }
 
-            // Status Snackbar
-            if let Some(ref msg) = status_message() {
-                div {
-                    style: "position: fixed; bottom: 3rem; background: #4ECDC4; color: #1a1a2e; padding: 1.2rem 2.5rem; border-radius: 16px; font-weight: 900; font-size: 1.1rem; box-shadow: 0 15px 40px rgba(78, 205, 196, 0.4); border-top: 4px solid white; z-index: 2000; animation: snackbarIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);",
-                    "✨ {msg}"
-                }
-            }
-
-            // Incoming Popup
+            // Incoming modal
             if show_incoming {
                 div {
-                    style: "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 3000; backdrop-filter: blur(10px); animation: fadeIn 0.3s ease-out;",
+                    style: "position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 3000; backdrop-filter: blur(4px);",
                     div {
-                        style: "background: #16213e; padding: 3rem; border-radius: 32px; border: 2px solid #4ECDC4; max-width: 450px; width: 90%; box-shadow: 0 0 80px rgba(78, 205, 196, 0.25); text-align: center; overflow: hidden; position: relative;",
+                        style: "background: #2b2b2b; padding: 2.5rem; border-radius: 16px; width: 90%; max-width: 420px; box-shadow: 0 15px 40px rgba(0,0,0,0.4); text-align: center; border: 1px solid #3d3d3d;",
+                        h2 { style: "margin: 0 0 1rem; color: white; font-size: 1.6rem; font-weight: 600;", if pending_total_files > 1 { "Receive Files?" } else { "Receive File?" } }
                         div {
-                            style: "width: 100px; height: 100px; background: rgba(78, 205, 196, 0.15); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 2rem; font-size: 3.5rem; animation: pulse 2s infinite;",
-                            "📥"
-                        }
-                        h2 { style: "margin-top: 0; color: #4ECDC4; font-size: 2.2rem; font-weight: 900;",
-                            if pending_total_files > 1 { "Receive {pending_total_files} Files?" } else { "Receive File?" }
-                        }
-                        div {
-                            style: "margin: 2rem 0; padding: 1.5rem; background: rgba(0,0,0,0.3); border-radius: 20px; text-align: left; border: 1px solid rgba(255,255,255,0.05);",
-                            p { style: "color: #a9b5c9; margin: 0; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;", "From Device" }
-                            p { style: "color: white; margin: 0.4rem 0 1.5rem; font-weight: 800; font-size: 1.2rem;", "{pending_from}" }
-                            p { style: "color: #a9b5c9; margin: 0; font-size: 0.9rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;", "First File" }
-                            p { style: "color: white; margin: 0.4rem 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.1rem;", "{pending_fname}" }
-                            if pending_total_files > 1 {
-                                div { style: "margin-top: 1rem; background: #4ECDC4; color: #1a1a2e; padding: 0.5rem 1rem; border-radius: 12px; font-weight: 900; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;",
-                                    span { "+ {pending_total_files - 1} MORE" }
-                                    span { style: "opacity: 0.8; font-size: 0.8rem;", "{format_size(pending_batch_size)}" }
-                                }
-                            } else {
-                                div { style: "margin-top: 0.5rem; text-align: right;",
-                                    span { style: "color: #a9b5c9; font-size: 0.85rem; font-weight: 600;", "{format_size(pending_total_size)}" }
-                                }
-                            }
+                            style: "margin: 1.5rem 0; padding: 1.5rem; background: #1e1e1e; border-radius: 12px; text-align: left; border: 1px solid #333;",
+                            p { style: "color: #777; margin: 0; font-size: 0.9rem;", "From Device" }
+                            p { style: "color: white; margin: 0.3rem 0 1.2rem; font-weight: 500; font-size: 1.1rem;", "{pending_from}" }
+                            p { style: "color: #777; margin: 0; font-size: 0.9rem;", "File Name" }
+                            p { style: "color: white; margin: 0.3rem 0; font-weight: 500; font-size: 1.05rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;", "{pending_fname}" }
                         }
                         div {
-                            style: "display: flex; gap: 1.5rem; margin-top: 2.5rem;",
+                            style: "display: flex; gap: 1rem; margin-top: 2rem;",
                             button {
-                                style: "flex: 1.5; padding: 1.2rem; border-radius: 16px; background: #4ECDC4; color: #1a1a2e; border: none; cursor: pointer; font-weight: 900; font-size: 1.2rem; box-shadow: 0 8px 20px rgba(78, 205, 196, 0.4); transition: transform 0.2s;",
-                                onclick: move |_| {
-                                    gui_bridge::respond_incoming(&pending_id_accept, true);
-                                },
-                                "ACCEPT"
-                            }
-                            button {
-                                style: "flex: 1; padding: 1.2rem; border-radius: 16px; background: transparent; color: #FF6B6B; border: 2px solid #FF6B6B; cursor: pointer; font-weight: 800; font-size: 1.1rem; transition: background 0.2s;",
+                                style: "flex: 1; padding: 0.9rem; border-radius: 8px; background: transparent; color: #a0a0a0; border: 1px solid #444; cursor: pointer; font-weight: 500; font-size: 1rem; transition: background 0.2s;",
                                 onclick: move |_| {
                                     gui_bridge::respond_incoming(&pending_id_decline, false);
                                 },
-                                "DECLINE"
+                                "Decline"
+                            }
+                            button {
+                                style: "flex: 1; padding: 0.9rem; border-radius: 8px; background: #e87d65; color: white; border: none; cursor: pointer; font-weight: 500; font-size: 1rem; transition: background 0.2s;",
+                                onclick: move |_| {
+                                    gui_bridge::respond_incoming(&pending_id_accept, true);
+                                },
+                                "Accept"
                             }
                         }
                     }

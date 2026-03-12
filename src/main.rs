@@ -32,7 +32,12 @@ fn main() -> Result<()> {
         .unwrap_or_else(|| ".".to_string());
     let temp_path = dirs::data_local_dir()
         .or_else(dirs::home_dir)
-        .map(|p| p.join("FastShare").join("temp").to_string_lossy().into_owned())
+        .map(|p| {
+            p.join("FastShare")
+                .join("temp")
+                .to_string_lossy()
+                .into_owned()
+        })
         .unwrap_or_else(|| std::env::temp_dir().to_string_lossy().into_owned());
 
     let (send_tx, send_rx) = tokio::sync::mpsc::channel(32);
@@ -66,7 +71,19 @@ fn main() -> Result<()> {
     });
 
     info!("Starting Dioxus GUI...");
-    dioxus::launch(gui::app);
+
+    let cfg = dioxus::desktop::Config::new()
+        .with_custom_head(r#"<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"><style>html { font-size: 14px; } body { margin: 0; padding: 0; background-color: #1c1c1c; overflow: hidden; font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; } * { box-sizing: border-box; }</style>"#.to_string())
+        .with_window(
+            dioxus::desktop::WindowBuilder::new()
+                .with_title("Rust Drop")
+                .with_inner_size(dioxus::desktop::LogicalSize::new(900.0, 600.0))
+                .with_resizable(false),
+        )
+        .with_menu(None);
+    dioxus::LaunchBuilder::desktop()
+        .with_cfg(cfg)
+        .launch(gui::app);
 
     info!("FastShare shut down gracefully.");
     Ok(())
