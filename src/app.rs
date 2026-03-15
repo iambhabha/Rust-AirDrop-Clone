@@ -320,7 +320,7 @@ pub async fn run_send_loop(
                         .send_file(
                             &connection,
                             &file_path,
-                            NetworkSpeed::Fast,
+                            NetworkSpeed::UltraFast, // was Fast
                             total_files,
                             current_idx,
                             total_batch_size,

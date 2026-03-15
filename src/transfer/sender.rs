@@ -38,7 +38,7 @@ use crate::transfer::scheduler::StreamScheduler;
 // ── Constants ──
 
 /// Default number of parallel streams for sending
-const DEFAULT_PARALLEL_STREAMS: usize = 32;
+const DEFAULT_PARALLEL_STREAMS: usize = 16; // was 32
 
 /// Maximum number of parallel streams
 const MAX_PARALLEL_STREAMS: usize = 128;
@@ -247,7 +247,8 @@ impl TransferSender {
 
             let control_clone = control.clone();
             Some(tokio::spawn(async move {
-                let mut interval = tokio::time::interval(std::time::Duration::from_millis(150));
+                // UI callback throttle: lower overhead
+                let mut interval = tokio::time::interval(std::time::Duration::from_millis(400)); // was 150
                 let start_time = std::time::Instant::now();
                 loop {
                     interval.tick().await;

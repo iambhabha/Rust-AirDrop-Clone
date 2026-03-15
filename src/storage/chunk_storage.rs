@@ -56,16 +56,17 @@ impl ChunkStorage {
     /// Store a chunk to disk.
     pub async fn store_chunk(&self, file_id: &str, chunk_index: u64, data: &[u8]) -> Result<()> {
         let dir = self.base_dir.join(file_id);
-        fs::create_dir_all(&dir).await?;
+
+        if !dir.exists() {
+            fs::create_dir_all(&dir).await?;
+        }
 
         let chunk_path = dir.join(format!("chunk_{:06}", chunk_index));
-        let mut file = fs::File::create(&chunk_path)
-            .await
-            .context("Failed to create chunk file")?;
-        file.write_all(data)
+
+        // Faster than create + write_all + flush per chunk
+        fs::write(&chunk_path, data)
             .await
             .context("Failed to write chunk data")?;
-        file.flush().await?;
 
         debug!(
             "Stored chunk {} ({} bytes) at {}",

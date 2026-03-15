@@ -124,7 +124,7 @@ impl TransferReceiver {
 
         // ── Read chunk data ──
         let mut data = Vec::with_capacity(chunk_meta.size as usize);
-        let mut read_buf = vec![0u8; 512 * 1024]; // 512 KB read buffer for speed
+        let mut read_buf = vec![0u8; 2 * 1024 * 1024]; // was 512 KB
         loop {
             // ── Check Transfer Control ──
             if let Some(state) = self.active_receptions.get(&chunk_meta.file_id) {
@@ -270,11 +270,12 @@ impl TransferReceiver {
             plan.file_name, plan.total_chunks
         );
 
-        // ── Write all chunks to the output file ──
-        use tokio::io::AsyncWriteExt;
-        let mut output = tokio::fs::File::create(output_path)
+        use tokio::io::{AsyncWriteExt, BufWriter};
+
+        let output_file = tokio::fs::File::create(output_path)
             .await
             .context("Failed to create output file")?;
+        let mut output = BufWriter::with_capacity(4 * 1024 * 1024, output_file);
 
         for i in 0..plan.total_chunks {
             let chunk_data = self.chunk_storage.read_chunk(file_id, i).await?;
