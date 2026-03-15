@@ -13,6 +13,13 @@ use fastshare::ui::{gui, gui_bridge};
 
 /// Main entry point. Starts the GUI and the FastShare background subsystems.
 fn main() -> Result<()> {
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var(
+            "RUST_LOG",
+            "fastshare=info,mdns_sd::service_daemon=off,mdns_sd=off,polling=error,quinn=error,rustls=error",
+        );
+    }
+
     // ── Initialize Logging ──
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::from_default_env().add_directive(Level::INFO.into()))
